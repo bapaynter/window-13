@@ -1,0 +1,8 @@
+node_modules
+.nuxt
+.output
+.data
+.env
+data/sessions/*.json
+dist
+.DS_Store
