@@ -1,32 +1,63 @@
-import type { Contract } from './contractSchema'
+import type { Instrument, ProvisionMechanism } from './instrumentSchema'
 
-export interface PlayerClause {
-  clauseIdentifier: number
+export interface PlayerDefinition {
+  definitionIdentifier: string
+  term: string
   text: string
-  category: string
-  obviousCost: string
-  hiddenCost: string
+  references: string[]
+}
+
+export interface PlayerProvision {
+  provisionIdentifier: string
+  sectionNumber: string
+  heading: string
+  text: string
+  references: string[]
+  consideration: string
   processingFee: number
+  mechanism: ProvisionMechanism
 }
 
-export interface PlayerContract {
-  preamble: string
-  clauses: PlayerClause[]
-  agentRemark: string
+export interface PlayerSchedule {
+  scheduleIdentifier: string
+  title: string
+  body: string
+  referencedBy: string[]
 }
 
-// The keystone flag stays server-side; exposing it would let the player read the answer.
-export function toPlayerContract(contract: Contract): PlayerContract {
+export interface PlayerInstrument {
+  recitals: string
+  definitions: PlayerDefinition[]
+  provisions: PlayerProvision[]
+  schedules: PlayerSchedule[]
+}
+
+// Control flags (controlling provisions, neutralization methods, severability
+// coverage, trap summary) stay server-side. Exposing them would hand over the answer.
+export function toPlayerInstrument(instrument: Instrument): PlayerInstrument {
   return {
-    preamble: contract.preamble,
-    agentRemark: contract.agentRemark,
-    clauses: contract.clauses.map((clause) => ({
-      clauseIdentifier: clause.clauseIdentifier,
-      text: clause.text,
-      category: clause.category,
-      obviousCost: clause.obviousCost,
-      hiddenCost: clause.hiddenCost,
-      processingFee: clause.processingFee
+    recitals: instrument.recitals,
+    definitions: instrument.definitions.map((definition) => ({
+      definitionIdentifier: definition.definitionIdentifier,
+      term: definition.term,
+      text: definition.text,
+      references: definition.references
+    })),
+    provisions: instrument.provisions.map((provision) => ({
+      provisionIdentifier: provision.provisionIdentifier,
+      sectionNumber: provision.sectionNumber,
+      heading: provision.heading,
+      text: provision.text,
+      references: provision.references,
+      consideration: provision.consideration,
+      processingFee: provision.processingFee,
+      mechanism: provision.mechanism
+    })),
+    schedules: instrument.schedules.map((schedule) => ({
+      scheduleIdentifier: schedule.scheduleIdentifier,
+      title: schedule.title,
+      body: schedule.body,
+      referencedBy: schedule.referencedBy
     }))
   }
 }

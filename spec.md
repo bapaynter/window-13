@@ -1,50 +1,55 @@
-# Spec: Deal with the Devil
+# Spec: Window 13 — Deal with the Devil
 
 A browser game where you negotiate a soul contract with a bored infernal clerk.
 
-## The Contract (what to build)
+## The instrument (what to build)
 
 - **One wish.** The player submits a single wish through a form.
-- **The clerk issues a contract.** Preamble plus four to seven numbered clauses. Each clause states an obvious cost and conceals a hidden cost. Exactly one clause is the **keystone** — the trap only holds while it stands.
-- **Negotiation.** Each round the player chooses one action per clause under review:
-  - **Approve** — accept the clause; its processing fee is added.
-  - **Strike** — remove the clause; incurs a small administrative surcharge.
-  - **Amend** — rewrite the clause in the player's own words; small surcharge, and the clerk re-drafts.
-  - **Invoke** — spend one Available Credit to force a re-read or reveal a hidden cost.
-- **Signature.** The player signs, or walks away.
-- **Neutral walk-away.** Walking away is a **draw** — no win, no loss, no comment. The clerk files it.
+- **The clerk issues an instrument** — a single dense legal document: recitals, definitions, numbered provisions, and any attached schedules. Roughly 18 provisions.
+- **Everything is visible.** There is no hidden clause. The difficulty is comprehending dense legalese and tracing how provisions modify each other, not information asymmetry.
+- **Controlling provisions.** One to three linked provisions determine how the wish is performed. They are not identified to the player; they are discoverable by reading and following cross-references (§).
 
-## Meters (Statement of Account)
+## Actions
 
-| Meter | Meaning | Range |
-|---|---|---|
-| Processing Fee | accumulated cost of accepted clauses and penalties | 0-100 |
-| Administrative Surcharge | penalties from striking, amending, invoking | 0-100 |
-| Available Credits | starts at 3; spent on Invoke | 0-3 |
+| Action | Effect |
+|---|---|
+| **Approve** | Adds the provision's processing fee to the burden. |
+| **Strike** | Removes the provision. Escalating surcharge. If an active severability provision covers it, the Department substitutes an equivalent term and the strike does not take effect. |
+| **Amend** | Replaces the wording. Clause fee rises; escalating surcharge. Some provisions cannot usefully be struck because striking triggers a substitution — those must be amended. Wording that tries to erase a cost is folded back in and the fee doubles. |
 
-## Outcomes
+Schedules cannot be struck; the provision that incorporates a schedule must be struck instead.
+
+## Burden and outcomes
+
+`burden = processingFee + administrativeSurcharge`, capped at 100. The trap threshold is **60**, applied to the burden.
 
 | Outcome | Condition |
 |---|---|
-| Clean Escape | Signed, keystone struck, processing fee below threshold |
-| Trapped | Signed, keystone struck, processing fee at or above threshold |
-| Literal Hell | Signed, keystone still standing |
+| Clean Escape | All controlling provisions neutralized, burden < 60 |
+| Trapped | All neutralized, burden ≥ 60 |
+| Partial | Some but not all neutralized |
+| Literal Hell | None neutralized |
 | Draw | Walked away |
 
-## The Clerk
+## The clerk
 
-- Tone: dry, bored, bureaucratic. A Department of Motor Vehicles clerk who processes damnation. No theatrical menace.
-- **Three personalities**, one chosen at random per session, **never disclosed to the player**. They differ only in voice, vocabulary, and clause phrasing. Numbers, outcomes, and difficulty are identical across all three.
+- Tone: dry, bored, bureaucratic — a DMV clerk who processes damnation.
+- **Three personalities**, one chosen at random per session, never disclosed. They differ only in voice, vocabulary, and clause phrasing; numbers and outcomes are identical.
+- The clerk never identifies the controlling provisions.
 
 ## Presentation
 
-- A dated government website, slightly hell-themed. Aged-paper background, burgundy header, muted red and gold accents, serif type, small blue underlined links, bordered tables, a department seal.
-- **Light** bureaucratic friction as comedy. Never blocks play.
-- Real fake pages: Home, Wish Intake, Contract, Notice, Filings, Regulations, FAQ, Contact. Dead nav links stay dead.
-- A session-timeout warning is shown but never actually expires.
+- A dated government website, slightly hell-themed: aged paper, burgundy header, muted red and gold, serif type, small blue links, a department seal.
+- Real fake pages: Home, Wish Intake, Instrument, Notice, Filings, Regulations, FAQ, Contact.
+- Cross-references render as clickable chips that scroll to and highlight their target; each provision shows its backlinks.
+- Light bureaucratic friction as comedy. Never blocks play.
+
+## Post-game
+
+After signing or withdrawing, the office supplies **Attachment A — Contract of Record**: every provision with its disposition, the controlling provisions marked and whether each was neutralized, any amendment wording, dangling references, the full record of proceedings, and the burden against threshold. Past filings are reopenable from `/filings`.
 
 ## Boundaries (do not build)
 
-- No accounts, no auth, no multiplayer.
-- No real-world harm: wishes that target real people or real violence are refused in character and redirected.
+- No accounts, no auth, no multiplayer, no credits or hints to buy.
+- No real-world harm: wishes targeting real people or real violence are refused in character.
 - No persistence beyond a local JSON filing per completed session.

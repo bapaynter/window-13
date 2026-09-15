@@ -1,5 +1,3 @@
-import type { Contract } from './contractSchema'
-
 export const PERSONALITY_KEYS = ['tenuredClerk', 'actuary', 'auditor'] as const
 export type PersonalityKey = (typeof PERSONALITY_KEYS)[number]
 
@@ -14,6 +12,8 @@ const PERSONALITY_DESCRIPTOR_WORDS: Record<PersonalityKey, readonly string[]> = 
   actuary: ['actuary'],
   auditor: ['auditor']
 }
+
+const KEYSTONE_LEAK_TERMS = ['keystone', 'load-bearing', 'load bearing']
 
 function buildForbiddenTerms(personalityKey: PersonalityKey): string[] {
   const terms = [
@@ -34,9 +34,6 @@ function buildAllForbiddenTerms(): string[] {
 }
 
 const ALL_FORBIDDEN_TERMS = buildAllForbiddenTerms()
-
-// Terms that give away which clause is load-bearing. Sentences containing them are dropped.
-const KEYSTONE_LEAK_TERMS = ['keystone', 'load-bearing', 'load bearing']
 
 function escapeForRegularExpression(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -75,17 +72,8 @@ export function stripPersonalityLeak(playerFacingText: string, personalityKey: P
   return scrubPlayerFacingText(playerFacingText, buildForbiddenTerms(personalityKey))
 }
 
-// Strips every known personality marker, not just the active one: a leak of any
-// personality name would be a hint. The active key is accepted for call-site clarity.
-export function sanitizeContract(contract: Contract, _personalityKey: PersonalityKey): Contract {
-  return {
-    preamble: scrubPlayerFacingText(contract.preamble, ALL_FORBIDDEN_TERMS),
-    agentRemark: scrubPlayerFacingText(contract.agentRemark, ALL_FORBIDDEN_TERMS),
-    clauses: contract.clauses.map((clause) => ({
-      ...clause,
-      text: scrubPlayerFacingText(clause.text, ALL_FORBIDDEN_TERMS),
-      obviousCost: scrubPlayerFacingText(clause.obviousCost, ALL_FORBIDDEN_TERMS),
-      hiddenCost: scrubPlayerFacingText(clause.hiddenCost, ALL_FORBIDDEN_TERMS)
-    }))
-  }
+// Scrubs every known personality marker plus any control-hint language, regardless
+// of the active personality. Used on generated document text and notices.
+export function scrubAllPersonalityLeaks(playerFacingText: string): string {
+  return scrubPlayerFacingText(playerFacingText, ALL_FORBIDDEN_TERMS)
 }

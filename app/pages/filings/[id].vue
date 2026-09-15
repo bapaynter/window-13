@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { FinalDocument } from '~/composables/useDevilSession'
+import type { FinalRecord } from '~/composables/useDevilSession'
 
 interface FilingRecordResponse {
   wish: string
   noticeText: string
-  finalDocument: FinalDocument
+  finalRecord: FinalRecord
 }
 
 const route = useRoute()
@@ -15,6 +15,7 @@ const isMissing = ref(false)
 const stampLabels: Record<string, string> = {
   cleanEscape: 'APPROVED',
   trapped: 'APPROVED',
+  partial: 'APPROVED IN PART',
   literalHell: 'APPROVED — EXPEDITED',
   draw: 'WITHDRAWN'
 }
@@ -41,8 +42,8 @@ onMounted(async (): Promise<void> => {
       <h2>Filing Record</h2>
       <p class="small-print">Wish on record: “{{ record.wish }}”</p>
 
-      <div class="notice-stamp" :class="`outcome-${record.finalDocument.outcome}`">
-        {{ stampLabels[record.finalDocument.outcome] ?? record.finalDocument.outcome }}
+      <div class="notice-stamp" :class="`outcome-${record.finalRecord.outcome}`">
+        {{ stampLabels[record.finalRecord.outcome] ?? record.finalRecord.outcome }}
       </div>
 
       <div v-if="record.noticeText.length > 0" class="panel">
@@ -50,7 +51,7 @@ onMounted(async (): Promise<void> => {
         <p class="notice-text">{{ record.noticeText }}</p>
       </div>
 
-      <ContractOfRecord :final-document="record.finalDocument" />
+      <ContractOfRecord :final-record="record.finalRecord" />
 
       <div class="button-row">
         <NuxtLink class="gov-button" to="/filings">Back to Filings</NuxtLink>

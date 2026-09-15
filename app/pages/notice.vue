@@ -4,6 +4,7 @@ const { notice, activeSession, restoreSession, resetSession } = useDevilSession(
 const stampLabels: Record<string, string> = {
   cleanEscape: 'APPROVED',
   trapped: 'APPROVED',
+  partial: 'APPROVED IN PART',
   literalHell: 'APPROVED — EXPEDITED',
   draw: 'WITHDRAWN'
 }
@@ -36,7 +37,7 @@ async function fileAnother(): Promise<void> {
 
     <StatementOfAccount :meters="notice.meters" />
 
-    <ContractOfRecord :final-document="notice.finalDocument" />
+    <ContractOfRecord :final-record="notice.finalRecord" />
 
     <div class="button-row">
       <button class="gov-button" type="button" @click="fileAnother">File Another Wish</button>

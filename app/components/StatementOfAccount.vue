@@ -45,19 +45,12 @@ const burdenStatus = computed((): { label: string; className: string } => {
           <td>Standing</td>
           <td class="amount" :class="burdenStatus.className">{{ burdenStatus.label }}</td>
         </tr>
-        <tr>
-          <td>Available Credits</td>
-          <td class="amount">{{ properties.meters.availableCredits }}</td>
-        </tr>
-        <tr>
-          <td>Keystone</td>
-          <td class="amount">{{ properties.meters.isKeystoneStruck ? 'STRUCK' : 'ACTIVE' }}</td>
-        </tr>
       </tbody>
     </table>
     <p class="small-print">
-      Total burden combines the processing fee and every administrative surcharge. A struck clause that is not
-      load-bearing is reissued at once; repeat edits are surcharged at an increasing rate. Balance is non-refundable.
+      Total burden combines the processing fee and every administrative surcharge. Strike a provision that severability
+      covers and the Department substitutes an equivalent term. Repeat strikes and amendments are surcharged at an
+      increasing rate. Balance is non-refundable.
     </p>
   </div>
 </template>

@@ -1,25 +1,25 @@
 import { mkdir, readFile, writeFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { Contract } from './contractSchema'
+import type { Instrument } from './instrumentSchema'
 import type { PersonalityKey } from './personalityGuard'
 import type { NegotiationActionRecord, Outcome, SessionMeters } from './meters'
-import type { FinalDocument } from './finalDocument'
+import type { FinalRecord } from './instrumentRecord'
 import { DEVIL_DATA_DIRECTORY } from './config'
 
 export interface SessionRecord {
   sessionIdentifier: string
   personalityKey: PersonalityKey
   wish: string
-  initialContract: Contract
-  currentContract: Contract
+  templateIdentifier: string
+  instrument: Instrument
   actionRecords: NegotiationActionRecord[]
   createdAt: string
   updatedAt: string
   outcome?: Outcome
   noticeText?: string
   finalMeters?: SessionMeters
-  finalDocument?: FinalDocument
+  finalRecord?: FinalRecord
 }
 
 export interface FilingSummary {
@@ -39,23 +39,23 @@ function buildSessionPath(sessionIdentifier: string): string {
   return join(DEVIL_DATA_DIRECTORY, `${sessionIdentifier}.json`)
 }
 
-export function createSession(wish: string, personalityKey: PersonalityKey, contract: Contract): SessionRecord {
+export function createSession(
+  wish: string,
+  personalityKey: PersonalityKey,
+  templateIdentifier: string,
+  instrument: Instrument
+): SessionRecord {
   const timestamp = new Date().toISOString()
   return {
     sessionIdentifier: randomUUID(),
     personalityKey,
     wish,
-    initialContract: contract,
-    currentContract: contract,
+    templateIdentifier,
+    instrument,
     actionRecords: [],
     createdAt: timestamp,
     updatedAt: timestamp
   }
-}
-
-// Older filings predate initialContract; fall back to the current document.
-export function getInitialContract(record: SessionRecord): Contract {
-  return record.initialContract ?? record.currentContract
 }
 
 export async function saveSession(record: SessionRecord): Promise<void> {
@@ -67,7 +67,12 @@ export async function saveSession(record: SessionRecord): Promise<void> {
 export async function loadSession(sessionIdentifier: string): Promise<SessionRecord | null> {
   try {
     const rawText = await readFile(buildSessionPath(sessionIdentifier), 'utf8')
-    return JSON.parse(rawText) as SessionRecord
+    const parsed = JSON.parse(rawText) as SessionRecord
+    // Filings written before the instrument redesign cannot be replayed.
+    if (parsed.instrument === undefined || parsed.templateIdentifier === undefined) {
+      return null
+    }
+    return parsed
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
       return null
@@ -85,7 +90,8 @@ export async function listFilings(): Promise<FilingSummary[]> {
       .map(async (fileName) => {
         try {
           const rawText = await readFile(join(DEVIL_DATA_DIRECTORY, fileName), 'utf8')
-          return JSON.parse(rawText) as SessionRecord
+          const parsed = JSON.parse(rawText) as SessionRecord
+          return parsed.templateIdentifier === undefined ? null : parsed
         } catch {
           return null
         }

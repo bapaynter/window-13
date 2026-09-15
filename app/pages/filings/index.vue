@@ -14,6 +14,7 @@ const isLoading = ref(true)
 const outcomeLabels: Record<string, string> = {
   cleanEscape: 'Approved (clean)',
   trapped: 'Approved (fee applied)',
+  partial: 'Approved in part',
   literalHell: 'Approved (expedited)',
   draw: 'Withdrawn'
 }

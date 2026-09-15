@@ -64,3 +64,44 @@ Red (failing test) -> Green (minimum code) -> Refactor.
 - [ ] 9.1 Full test run + lint
 - [ ] 9.2 Live smoke call against OpenRouter
 - [ ] 9.3 Report done; await review before any commit
+
+---
+
+# v2 — Instrument redesign (fine print + cross-references)
+
+Supersedes the flat-clause model. Retired: `contractSchema`, `contractValidator`,
+`negotiation`, `finalDocument`, `contractGeneration`, and their tests.
+
+## Task 10 — Instrument core
+
+- [x] 10.1 `instrumentSchema.ts` — recitals, definitions, provisions, schedules, control fields
+- [x] 10.2 `playerView.ts` — strips all server-only control fields
+- [x] 10.3 `meters.ts` v2 — drop credits/invoke; burden; `partial` outcome
+- [x] 10.4 `instrumentSimulation.ts` — severability/substitution, amend-only, dangling refs
+
+## Task 11 — Templates and generation
+
+- [x] 11.1 `instrumentTemplates.ts` — boilerplate + five archetypes (~18 provisions), `buildFallbackInstrument`
+- [x] 11.2 `instrumentGeneration.ts` — LLM writes wording, validated + clamped, deterministic fallback
+- [x] 11.3 `prompts.ts` v2 — instrument drafting + notice (incl. partial)
+
+## Task 12 — Tests
+
+- [x] 12.1 schema/playerView (12)
+- [x] 12.2 templates solvability + distribution + wrong-solve fails (6)
+- [x] 12.3 simulation (9)
+- [x] 12.4 meters v2 (11)
+- [x] 12.5 personality guard (7)
+
+## Task 13 — Endpoints and UI
+
+- [x] 13.1 issue/negotiate/conclude/filings reworked for instruments
+- [x] 13.2 `CrossReferencedText.vue`, `InstrumentDocument.vue`, `ContractOfRecord.vue`
+- [x] 13.3 contract/notice/filings/regulations/faq pages updated; purged stale filings
+
+## Task 14 — Close-out
+
+- [x] 14.1 46 tests pass; typecheck clean
+- [x] 14.2 Live playthrough: correct solve → cleanEscape; partial; wrong solve → hell;
+      severability substitution + amend-first verified
+

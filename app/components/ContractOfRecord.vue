@@ -1,20 +1,24 @@
 <script setup lang="ts">
-import type { FinalDocument } from '~/composables/useDevilSession'
+import type { FinalRecord, ProvisionState } from '~/composables/useDevilSession'
 
 const properties = defineProps<{
-  finalDocument: FinalDocument
+  finalRecord: FinalRecord
 }>()
 
-const dispositionLabels: Record<string, string> = {
+const dispositionLabels: Record<ProvisionState, string> = {
+  untouched: 'UNTOUCHED',
   approved: 'APPROVED',
-  struck: 'STRUCK (LOAD-BEARING)',
-  replaced: 'STRUCK / REISSUED',
+  struck: 'STRUCK',
   amended: 'AMENDED',
-  untouched: 'UNTOUCHED'
+  substituted: 'SUBSTITUTED BY SEVERABILITY'
 }
 
-function isKeystone(clauseIdentifier: number): boolean {
-  return properties.finalDocument.keystoneClauseIdentifier === clauseIdentifier
+function isControlling(identifier: string): boolean {
+  return properties.finalRecord.controllingProvisionIdentifiers.includes(identifier)
+}
+
+function isNeutralized(identifier: string): boolean {
+  return properties.finalRecord.neutralizedControlIdentifiers.includes(identifier)
 }
 </script>
 
@@ -23,37 +27,46 @@ function isKeystone(clauseIdentifier: number): boolean {
     <div class="panel-title">Attachment A — Contract of Record</div>
 
     <p class="small-print">
-      Full disclosure of the instrument as executed, including every concealed term. This attachment is supplied
-      after disposition, as required by § 666.7. It is not available before signature.
+      Full disclosure of the instrument as executed, including which provisions controlled the outcome. Supplied after
+      disposition, as required by § 666.7. Not available before signature.
     </p>
 
     <div
-      v-for="clause in properties.finalDocument.clauses"
-      :key="clause.clauseIdentifier"
+      v-for="provision in properties.finalRecord.provisions"
+      :key="provision.provisionIdentifier"
       class="clause-row"
-      :class="{ 'is-amended': clause.disposition === 'amended', 'is-struck': clause.disposition === 'struck' || clause.disposition === 'replaced' }"
+      :class="{
+        'is-amended': provision.disposition === 'amended',
+        'is-struck': provision.disposition === 'struck' || provision.disposition === 'substituted'
+      }"
     >
       <div class="clause-heading">
         <span>
-          Clause {{ clause.clauseIdentifier }} — {{ clause.category }}
-          <strong v-if="isKeystone(clause.clauseIdentifier)"> ★ LOAD-BEARING</strong>
+          <span class="section-number">§ {{ provision.sectionNumber }}</span>
+          {{ provision.heading }}
+          <strong v-if="isControlling(provision.provisionIdentifier)">
+            ★ CONTROLLING —
+            {{ isNeutralized(provision.provisionIdentifier) ? 'NEUTRALIZED' : 'LEFT STANDING' }}
+            ({{ provision.neutralizationMethod ?? 'strike' }})</strong
+          >
         </span>
-        <span>{{ dispositionLabels[clause.disposition] ?? clause.disposition }}</span>
+        <span>{{ dispositionLabels[provision.disposition] }}</span>
       </div>
 
-      <p v-if="clause.originalText !== undefined" class="clause-text clause-original">
-        Original wording: {{ clause.originalText }}
+      <p v-if="provision.originalText !== undefined" class="clause-text clause-original">
+        Original wording: {{ provision.originalText }}
       </p>
-      <p class="clause-text">{{ clause.text }}</p>
+      <p class="clause-text">{{ provision.text }}</p>
 
       <div class="clause-costs">
-        <div>Stated consideration: {{ clause.obviousCost }}</div>
-        <div>Processing fee on record: {{ clause.processingFee }}</div>
-        <div class="balance-due">Concealed term: {{ clause.hiddenCost }}</div>
-        <div v-if="clause.originalHiddenCost !== undefined" class="small-print">
-          Original concealed term: {{ clause.originalHiddenCost }}
-        </div>
+        <div>Stated consideration: {{ provision.consideration }}</div>
+        <div>Processing fee on record: {{ provision.processingFee }}</div>
       </div>
+    </div>
+
+    <div v-if="properties.finalRecord.danglingReferenceIdentifiers.length > 0" class="clause-costs">
+      Dangling references after removal:
+      {{ properties.finalRecord.danglingReferenceIdentifiers.join(', ') }}
     </div>
 
     <h2>Record of Proceedings</h2>
@@ -62,15 +75,15 @@ function isKeystone(clauseIdentifier: number): boolean {
         <tr>
           <th>#</th>
           <th>Action</th>
-          <th>Clause</th>
+          <th>Provision</th>
           <th>Fee applied</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="entry in properties.finalDocument.actionLog" :key="entry.round">
+        <tr v-for="entry in properties.finalRecord.actionLog" :key="entry.round">
           <td>{{ entry.round }}</td>
           <td>{{ entry.action }}</td>
-          <td>{{ entry.clauseIdentifier }}</td>
+          <td>§ {{ entry.targetIdentifier }}</td>
           <td>{{ entry.feeApplied }}</td>
         </tr>
       </tbody>
@@ -80,21 +93,26 @@ function isKeystone(clauseIdentifier: number): boolean {
       <tbody>
         <tr>
           <td>Processing Fee</td>
-          <td class="amount">{{ properties.finalDocument.processingFee }}</td>
+          <td class="amount">{{ properties.finalRecord.processingFee }}</td>
         </tr>
         <tr>
           <td>Administrative Surcharge</td>
-          <td class="amount">{{ properties.finalDocument.administrativeSurcharge }}</td>
+          <td class="amount">{{ properties.finalRecord.administrativeSurcharge }}</td>
         </tr>
         <tr>
           <td><strong>Total Burden</strong></td>
-          <td class="amount balance-due"><strong>{{ properties.finalDocument.burden }}</strong></td>
+          <td class="amount balance-due"><strong>{{ properties.finalRecord.burden }}</strong></td>
         </tr>
         <tr>
           <td>Trap Threshold</td>
-          <td class="amount">{{ properties.finalDocument.trapThreshold }}</td>
+          <td class="amount">{{ properties.finalRecord.trapThreshold }}</td>
         </tr>
       </tbody>
     </table>
+
+    <div class="panel" style="margin-top: 1rem">
+      <div class="panel-title">Examining Clerk’s Note</div>
+      <p class="small-print">{{ properties.finalRecord.trapSummary }}</p>
+    </div>
   </div>
 </template>

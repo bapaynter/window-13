@@ -1,9 +1,14 @@
 import { buildConcludeMessages } from '../../utils/devil/prompts'
 import { PERSONALITY_PROFILES } from '../../utils/devil/personalities'
-import { stripPersonalityLeak } from '../../utils/devil/personalityGuard'
-import { computeSessionMeters, determineOutcome, type SignatureDecision } from '../../utils/devil/meters'
-import { getInitialContract, loadSession, saveSession } from '../../utils/devil/sessionStore'
-import { buildFinalDocument } from '../../utils/devil/finalDocument'
+import { scrubAllPersonalityLeaks } from '../../utils/devil/personalityGuard'
+import {
+  computeSessionMeters,
+  determineOutcome,
+  type SignatureDecision
+} from '../../utils/devil/meters'
+import { simulateInstrument } from '../../utils/devil/instrumentSimulation'
+import { buildFinalRecord } from '../../utils/devil/instrumentRecord'
+import { loadSession, saveSession } from '../../utils/devil/sessionStore'
 import { CONCLUDE_MODEL } from '../../utils/devil/config'
 import { requestCompletion } from '../../utils/devil/openrouter'
 import { parseJsonObject } from '../../utils/devil/modelJson'
@@ -31,49 +36,60 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'No such filing.' })
   }
 
-  const keystoneClause = session.currentContract.clauses.find((clause) => clause.isKeystone)
-  const meters = computeSessionMeters(session.actionRecords, keystoneClause?.clauseIdentifier ?? 0)
-  const outcome = determineOutcome(meters, decision)
+  const simulation = simulateInstrument(session.instrument, session.actionRecords)
+  const meters = computeSessionMeters(session.actionRecords)
+  const outcome = determineOutcome({
+    neutralizedControlCount: simulation.neutralizedControlCount,
+    totalControlCount: simulation.totalControlCount,
+    burden: meters.burden,
+    decision
+  })
 
   const personality = PERSONALITY_PROFILES[session.personalityKey]
   let noticeText = 'The window is now closed.'
 
-  try {
-    const rawReply = await requestCompletion({
-      model: CONCLUDE_MODEL,
-      messages: buildConcludeMessages(personality, { wish: session.wish, outcome, meters }),
-      jsonMode: true,
-      maximumOutputTokens: 2500
-    })
-    const reply = parseJsonObject<ConcludeModelReply>(rawReply)
-    if (reply && typeof reply.noticeText === 'string' && reply.noticeText.trim().length > 0) {
-      noticeText = stripPersonalityLeak(reply.noticeText, session.personalityKey)
+  const noticeMessages = buildConcludeMessages(personality, {
+    wish: session.wish,
+    outcome,
+    trapSummary: session.instrument.trapSummary,
+    neutralizedProvisionIdentifiers: simulation.neutralizedControlIdentifiers,
+    controllingProvisionIdentifiers: session.instrument.controllingProvisionIdentifiers,
+    meters
+  })
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const rawReply = await requestCompletion({
+        model: CONCLUDE_MODEL,
+        messages: noticeMessages,
+        jsonMode: true,
+        maximumOutputTokens: 4000
+      })
+      const reply = parseJsonObject<ConcludeModelReply>(rawReply)
+      if (reply && typeof reply.noticeText === 'string' && reply.noticeText.trim().length > 0) {
+        noticeText = scrubAllPersonalityLeaks(reply.noticeText)
+        break
+      }
+    } catch (error) {
+      console.error('conclude: model call failed', error)
     }
-  } catch (error) {
-    console.error('conclude: model call failed', error)
   }
 
-  const finalDocument = buildFinalDocument({
-    initialContract: getInitialContract(session),
-    finalContract: session.currentContract,
+  const finalRecord = buildFinalRecord({
+    instrument: session.instrument,
     actionRecords: session.actionRecords,
+    simulation,
     meters,
     outcome
   })
 
-  const finalizedSession = {
+  await saveSession({
     ...session,
     outcome,
     noticeText,
     finalMeters: meters,
-    finalDocument
-  }
-  await saveSession(finalizedSession)
+    finalRecord
+  })
 
-  return {
-    outcome,
-    noticeText,
-    meters,
-    finalDocument
-  }
+  return { outcome, noticeText, meters, finalRecord }
 })

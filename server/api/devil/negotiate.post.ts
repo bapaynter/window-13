@@ -1,28 +1,32 @@
 import { buildNegotiateMessages } from '../../utils/devil/prompts'
 import { PERSONALITY_PROFILES } from '../../utils/devil/personalities'
-import { stripPersonalityLeak, sanitizeContract } from '../../utils/devil/personalityGuard'
+import { scrubAllPersonalityLeaks } from '../../utils/devil/personalityGuard'
 import { computeSessionMeters, type NegotiationAction } from '../../utils/devil/meters'
+import { simulateInstrument } from '../../utils/devil/instrumentSimulation'
 import { loadSession, saveSession } from '../../utils/devil/sessionStore'
 import { MAXIMUM_AMENDMENT_LENGTH, NEGOTIATE_MODEL } from '../../utils/devil/config'
 import { requestCompletion } from '../../utils/devil/openrouter'
 import { parseJsonObject } from '../../utils/devil/modelJson'
-import { applyNegotiationToContract, type NegotiationModelReply } from '../../utils/devil/negotiation'
-import { toPlayerContract } from '../../utils/devil/playerView'
+import { toPlayerInstrument } from '../../utils/devil/playerView'
 
-const ALLOWED_ACTIONS: NegotiationAction[] = ['approve', 'strike', 'amend', 'invoke']
+const ALLOWED_ACTIONS: NegotiationAction[] = ['approve', 'strike', 'amend']
 
 interface NegotiateRequestBody {
   sessionIdentifier?: unknown
   action?: unknown
-  clauseIdentifier?: unknown
+  targetIdentifier?: unknown
   amendmentText?: unknown
+}
+
+interface NegotiateModelReply {
+  agentRemark?: unknown
 }
 
 export default defineEventHandler(async (event) => {
   const body = (await readBody(event)) as NegotiateRequestBody
   const sessionIdentifier = typeof body?.sessionIdentifier === 'string' ? body.sessionIdentifier : ''
   const action = typeof body?.action === 'string' ? (body.action as NegotiationAction) : 'approve'
-  const clauseIdentifier = typeof body?.clauseIdentifier === 'number' ? body.clauseIdentifier : -1
+  const targetIdentifier = typeof body?.targetIdentifier === 'string' ? body.targetIdentifier : ''
   const amendmentText = typeof body?.amendmentText === 'string' ? body.amendmentText.trim() : ''
 
   if (sessionIdentifier.length === 0) {
@@ -46,95 +50,78 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'No such filing.' })
   }
 
-  const targetClause = session.currentContract.clauses.find(
-    (clause) => clause.clauseIdentifier === clauseIdentifier
+  const targetProvision = session.instrument.provisions.find(
+    (provision) => provision.provisionIdentifier === targetIdentifier
   )
-  if (targetClause === undefined) {
-    throw createError({ statusCode: 400, statusMessage: 'No such clause on this contract.' })
+  if (targetProvision === undefined) {
+    throw createError({ statusCode: 400, statusMessage: 'No such provision in this instrument.' })
   }
 
-  const processingFee = action === 'approve' ? targetClause.processingFee : 0
+  const processingFee = action === 'approve' ? targetProvision.processingFee : 0
   const nextActionRecords = [
     ...session.actionRecords,
-    { round: session.actionRecords.length + 1, action, clauseIdentifier, processingFee }
+    {
+      round: session.actionRecords.length + 1,
+      action,
+      targetIdentifier,
+      processingFee,
+      ...(action === 'amend' ? { amendmentText } : {})
+    }
   ]
 
-  const priorAmendmentCount = session.actionRecords.filter((record) => record.action === 'amend').length
-  const amendmentOrdinal = action === 'amend' ? priorAmendmentCount + 1 : priorAmendmentCount
-
   const personality = PERSONALITY_PROFILES[session.personalityKey]
-  const actionSummary = buildActionSummary(action, targetClause.processingFee)
-
   let agentRemark = 'Processed.'
-  let modelReply: NegotiationModelReply | null = null
 
   try {
     const rawReply = await requestCompletion({
       model: NEGOTIATE_MODEL,
       messages: buildNegotiateMessages(personality, {
-        contract: session.currentContract,
         action,
-        clauseIdentifier,
+        targetIdentifier,
+        heading: targetProvision.heading,
         amendmentText,
-        actionSummary
+        actionSummary: buildActionSummary(action, processingFee)
       }),
       jsonMode: true,
-      maximumOutputTokens: 2500
+      maximumOutputTokens: 2000
     })
-    modelReply = parseJsonObject<NegotiationModelReply>(rawReply)
-    if (modelReply && typeof modelReply.agentRemark === 'string') {
-      agentRemark = stripPersonalityLeak(modelReply.agentRemark, session.personalityKey)
+    const reply = parseJsonObject<NegotiateModelReply>(rawReply)
+    if (reply && typeof reply.agentRemark === 'string' && reply.agentRemark.trim().length > 0) {
+      agentRemark = scrubAllPersonalityLeaks(reply.agentRemark)
     }
   } catch (error) {
     console.error('negotiate: model call failed', error)
   }
 
-  const mutatedContract = applyNegotiationToContract({
-    contract: session.currentContract,
-    action,
-    clauseIdentifier,
-    amendmentText,
-    amendmentOrdinal,
-    modelReply
-  })
-  const nextContract = sanitizeContract({ ...mutatedContract, agentRemark }, session.personalityKey)
-
   const nextSession = {
     ...session,
-    currentContract: nextContract,
     actionRecords: nextActionRecords
   }
   await saveSession(nextSession)
 
-  const keystoneClause = nextContract.clauses.find((clause) => clause.isKeystone)
-  const meters = computeSessionMeters(nextActionRecords, keystoneClause?.clauseIdentifier ?? 0)
-
-  const revealedHiddenCosts =
-    action === 'invoke'
-      ? nextContract.clauses.map((clause) => ({
-          clauseIdentifier: clause.clauseIdentifier,
-          hiddenCost: clause.hiddenCost
-        }))
-      : undefined
+  const simulation = simulateInstrument(session.instrument, nextActionRecords)
 
   return {
     actionRecords: nextActionRecords,
-    contract: toPlayerContract(nextContract),
-    meters,
+    instrument: toPlayerInstrument(session.instrument),
+    meters: computeSessionMeters(nextActionRecords),
     agentRemark,
-    revealedHiddenCosts
+    // Never expose which provisions control the outcome; only structural facts.
+    simulation: {
+      provisionStates: simulation.provisionStates,
+      activeSeverabilityIdentifiers: simulation.activeSeverabilityIdentifiers,
+      substitutedProvisionIdentifiers: simulation.substitutedProvisionIdentifiers,
+      danglingReferenceIdentifiers: simulation.danglingReferenceIdentifiers
+    }
   }
 })
 
 function buildActionSummary(action: NegotiationAction, processingFee: number): string {
   if (action === 'approve') {
-    return `The applicant accepted the clause; a processing fee of ${processingFee} is added to the balance.`
+    return `The applicant accepted the provision; a processing fee of ${processingFee} is added to the burden.`
   }
   if (action === 'strike') {
-    return 'The applicant struck the clause. If it is not load-bearing, the office reissues a replacement at once and the surcharge applies.'
+    return 'The applicant struck the provision. If any active severability provision covers it, the Department substitutes an equivalent term and the strike does not take effect.'
   }
-  if (action === 'invoke') {
-    return 'The applicant spent an available credit to compel a full disclosure of concealed costs.'
-  }
-  return 'The applicant replaced the clause with their own wording; the office honours it literally and the surcharge applies.'
+  return 'The applicant replaced the provision with their own wording; the clause fee rises and the surcharge applies.'
 }

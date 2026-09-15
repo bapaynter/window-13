@@ -1,37 +1,42 @@
 <script setup lang="ts">
-import type { AgentChatMessage } from '~/composables/useDevilSession'
+import type { AgentChatMessage, DevilActionRecord } from '~/composables/useDevilSession'
 
 const { activeSession, isBusy, errorMessage, restoreSession, takeAction, conclude } = useDevilSession()
 
 const transcript = ref<AgentChatMessage[]>([])
+const highlightedIdentifier = ref<string | null>(null)
 
 onMounted((): void => {
   restoreSession()
   if (activeSession.value === null) {
     navigateTo('/wish')
-    return
   }
-  transcript.value = [{ speaker: 'clerk', text: activeSession.value.contract.agentRemark }]
 })
 
 async function handleAction(payload: {
-  action: 'approve' | 'strike' | 'amend' | 'invoke'
-  clauseIdentifier: number
+  action: DevilActionRecord['action']
+  targetIdentifier: string
   amendmentText: string
 }): Promise<void> {
-  const actionLabels: Record<typeof payload.action, string> = {
-    approve: `I approve clause ${payload.clauseIdentifier}.`,
-    strike: `I strike clause ${payload.clauseIdentifier}.`,
-    amend: `I amend clause ${payload.clauseIdentifier}: ${payload.amendmentText}`,
-    invoke: `I invoke my right of disclosure on clause ${payload.clauseIdentifier}.`
+  const actionLabels: Record<DevilActionRecord['action'], string> = {
+    approve: `I approve §${payload.targetIdentifier}.`,
+    strike: `I strike §${payload.targetIdentifier}.`,
+    amend: `I amend §${payload.targetIdentifier}: ${payload.amendmentText}`
   }
   transcript.value.push({ speaker: 'applicant', text: actionLabels[payload.action] })
 
-  const previousAgentRemark = activeSession.value?.contract.agentRemark ?? ''
-  await takeAction(payload.action, payload.clauseIdentifier, payload.amendmentText)
+  const agentRemark = await takeAction(payload.action, payload.targetIdentifier, payload.amendmentText)
+  if (agentRemark.length > 0) {
+    transcript.value.push({ speaker: 'clerk', text: agentRemark })
+  }
+}
 
-  if (activeSession.value !== null && activeSession.value.contract.agentRemark !== previousAgentRemark) {
-    transcript.value.push({ speaker: 'clerk', text: activeSession.value.contract.agentRemark })
+async function handleReferenceClick(identifier: string): Promise<void> {
+  highlightedIdentifier.value = identifier
+  await nextTick()
+  const element = document.getElementById(`provision-${identifier}`)
+  if (element !== null) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 }
 
@@ -39,10 +44,6 @@ async function finalize(decision: 'sign' | 'walk'): Promise<void> {
   if (activeSession.value === null) {
     return
   }
-  transcript.value.push({
-    speaker: 'applicant',
-    text: decision === 'sign' ? 'I will sign the contract.' : 'I am withdrawing. I will not sign.'
-  })
   const didConclude = await conclude(decision)
   if (didConclude) {
     await navigateTo('/notice')
@@ -52,20 +53,30 @@ async function finalize(decision: 'sign' | 'walk'): Promise<void> {
 
 <template>
   <div v-if="activeSession !== null">
-    <h2>Form 666-D — Soul Contract</h2>
+    <h2>Form 666-D — Instrument Under Review</h2>
 
     <div v-if="errorMessage.length > 0" class="error-banner">{{ errorMessage }}</div>
 
-    <p class="small-print">
-      Applicant statement on file: “{{ activeSession.wish }}”
-    </p>
+    <div class="panel objective-panel">
+      <div class="panel-title">Objective</div>
+      <p>
+        Your wish: “{{ activeSession.wish }}”
+      </p>
+      <p>
+        Read the instrument carefully. Neutralize every provision that controls how the wish is performed, then sign
+        within the trap threshold (60). Struck provisions that severability covers are substituted, not removed. Cross
+        references (§) are clickable.
+      </p>
+    </div>
 
-    <ContractDocument
-      :contract="activeSession.contract"
+    <InstrumentDocument
+      :instrument="activeSession.instrument"
       :action-records="activeSession.actionRecords"
-      :revealed-hidden-costs="activeSession.revealedHiddenCosts"
+      :simulation="activeSession.simulation"
       :is-busy="isBusy"
+      :highlighted-identifier="highlightedIdentifier"
       @action="handleAction"
+      @reference-click="handleReferenceClick"
     />
 
     <StatementOfAccount :meters="activeSession.meters" />
@@ -74,7 +85,7 @@ async function finalize(decision: 'sign' | 'walk'): Promise<void> {
 
     <div class="panel">
       <div class="panel-title">Disposition</div>
-      <p>Sign the contract, or withdraw without penalty. Withdrawal is a neutral result.</p>
+      <p>Sign the instrument, or withdraw without penalty. Withdrawal is a neutral result.</p>
       <div class="button-row">
         <button class="gov-button primary" type="button" :disabled="isBusy" @click="finalize('sign')">
           Sign and Submit

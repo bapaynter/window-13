@@ -1,87 +1,126 @@
-export interface DevilClause {
-  clauseIdentifier: number
+export type ProvisionMechanism =
+  | 'delivery'
+  | 'consideration'
+  | 'waiver'
+  | 'term'
+  | 'precedence'
+  | 'severability'
+  | 'incorporation'
+  | 'definition'
+  | 'survivorship'
+  | 'ambiguity'
+
+export interface PlayerDefinition {
+  definitionIdentifier: string
+  term: string
   text: string
-  category: string
-  obviousCost: string
-  hiddenCost: string
-  processingFee: number
+  references: string[]
 }
 
-export interface DevilContract {
-  preamble: string
-  clauses: DevilClause[]
-  agentRemark: string
+export interface PlayerProvision {
+  provisionIdentifier: string
+  sectionNumber: string
+  heading: string
+  text: string
+  references: string[]
+  consideration: string
+  processingFee: number
+  mechanism: ProvisionMechanism
 }
 
-export interface DevilActionRecord {
-  round: number
-  action: 'approve' | 'strike' | 'amend' | 'invoke'
-  clauseIdentifier: number
-  processingFee: number
+export interface PlayerSchedule {
+  scheduleIdentifier: string
+  title: string
+  body: string
+  referencedBy: string[]
+}
+
+export interface PlayerInstrument {
+  recitals: string
+  definitions: PlayerDefinition[]
+  provisions: PlayerProvision[]
+  schedules: PlayerSchedule[]
 }
 
 export interface DevilMeters {
   processingFee: number
   administrativeSurcharge: number
-  availableCredits: number
-  isKeystoneStruck: boolean
   burden: number
 }
 
-export interface DevilRevealedCost {
-  clauseIdentifier: number
-  hiddenCost: string
+export interface DevilActionRecord {
+  round: number
+  action: 'approve' | 'strike' | 'amend'
+  targetIdentifier: string
+  processingFee: number
+  amendmentText?: string
 }
 
-export type DevilOutcome = 'cleanEscape' | 'trapped' | 'literalHell' | 'draw'
+export type ProvisionState = 'untouched' | 'approved' | 'struck' | 'amended' | 'substituted'
 
-export type ClauseDisposition = 'approved' | 'struck' | 'replaced' | 'amended' | 'untouched'
+export interface DevilSimulation {
+  provisionStates: Record<string, ProvisionState>
+  activeSeverabilityIdentifiers: string[]
+  substitutedProvisionIdentifiers: string[]
+  danglingReferenceIdentifiers: string[]
+}
 
-export interface FinalClauseDisposition {
-  clauseIdentifier: number
-  category: string
+export type DevilOutcome = 'cleanEscape' | 'trapped' | 'partial' | 'literalHell' | 'draw'
+
+export interface FinalProvisionDisposition {
+  provisionIdentifier: string
+  sectionNumber: string
+  heading: string
   text: string
-  obviousCost: string
-  hiddenCost: string
+  consideration: string
   processingFee: number
-  isKeystone: boolean
-  disposition: ClauseDisposition
+  mechanism: ProvisionMechanism
+  references: string[]
+  disposition: ProvisionState
+  isControlling: boolean
+  neutralizationMethod: 'strike' | 'amend' | null
   originalText?: string
-  originalHiddenCost?: string
 }
 
 export interface FinalActionLogEntry {
   round: number
-  action: DevilActionRecord['action']
-  clauseIdentifier: number
+  action: 'approve' | 'strike' | 'amend'
+  targetIdentifier: string
   feeApplied: number
+  amendmentText?: string
 }
 
-export interface FinalDocument {
+export interface FinalRecord {
   outcome: DevilOutcome
-  clauses: FinalClauseDisposition[]
-  keystoneClauseIdentifier: number | null
+  recitals: string
+  definitions: PlayerDefinition[]
+  provisions: FinalProvisionDisposition[]
+  schedules: PlayerSchedule[]
+  controllingProvisionIdentifiers: string[]
+  neutralizedControlIdentifiers: string[]
+  danglingReferenceIdentifiers: string[]
   actionLog: FinalActionLogEntry[]
   processingFee: number
   administrativeSurcharge: number
   burden: number
   trapThreshold: number
+  trapSummary: string
 }
 
 export interface ActiveDevilSession {
   sessionIdentifier: string
   wish: string
-  contract: DevilContract
+  instrument: PlayerInstrument
   actionRecords: DevilActionRecord[]
   meters: DevilMeters
-  revealedHiddenCosts: DevilRevealedCost[]
+  simulation: DevilSimulation
 }
 
 export interface DevilNotice {
   outcome: DevilOutcome
   noticeText: string
   meters: DevilMeters
-  finalDocument: FinalDocument
+  finalRecord: FinalRecord
 }
 
 export interface AgentChatMessage {
@@ -146,10 +185,6 @@ export function useDevilSession() {
     }
   }
 
-  function clearError(): void {
-    errorMessage.value = ''
-  }
-
   function resetSession(): void {
     activeSession.value = null
     notice.value = null
@@ -160,21 +195,26 @@ export function useDevilSession() {
 
   async function startSession(wish: string): Promise<boolean> {
     isBusy.value = true
-    clearError()
+    errorMessage.value = ''
     try {
       const response = await $fetch<{
         sessionIdentifier: string
-        contract: DevilContract
+        instrument: PlayerInstrument
         meters: DevilMeters
       }>('/api/devil/issue', { method: 'POST', body: { wish } })
 
       activeSession.value = {
         sessionIdentifier: response.sessionIdentifier,
         wish,
-        contract: response.contract,
+        instrument: response.instrument,
         actionRecords: [],
         meters: response.meters,
-        revealedHiddenCosts: []
+        simulation: {
+          provisionStates: {},
+          activeSeverabilityIdentifiers: [],
+          substitutedProvisionIdentifiers: [],
+          danglingReferenceIdentifiers: []
+        }
       }
       notice.value = null
       persistSession()
@@ -191,42 +231,42 @@ export function useDevilSession() {
 
   async function takeAction(
     action: DevilActionRecord['action'],
-    clauseIdentifier: number,
+    targetIdentifier: string,
     amendmentText = ''
-  ): Promise<void> {
+  ): Promise<string> {
     if (activeSession.value === null) {
-      return
+      return ''
     }
     isBusy.value = true
-    clearError()
+    errorMessage.value = ''
     try {
       const response = await $fetch<{
         actionRecords: DevilActionRecord[]
-        contract: DevilContract
         meters: DevilMeters
         agentRemark: string
-        revealedHiddenCosts?: DevilRevealedCost[]
+        simulation: DevilSimulation
       }>('/api/devil/negotiate', {
         method: 'POST',
         body: {
           sessionIdentifier: activeSession.value.sessionIdentifier,
           action,
-          clauseIdentifier,
+          targetIdentifier,
           amendmentText
         }
       })
 
       activeSession.value = {
         ...activeSession.value,
-        contract: response.contract,
         actionRecords: response.actionRecords,
         meters: response.meters,
-        revealedHiddenCosts: response.revealedHiddenCosts ?? activeSession.value.revealedHiddenCosts
+        simulation: response.simulation
       }
       persistSession()
+      return response.agentRemark
     } catch (error) {
       errorMessage.value = 'The clerk did not accept that action. Please try again.'
       console.error('takeAction failed', error)
+      return ''
     } finally {
       isBusy.value = false
     }
@@ -237,13 +277,13 @@ export function useDevilSession() {
       return false
     }
     isBusy.value = true
-    clearError()
+    errorMessage.value = ''
     try {
       const response = await $fetch<{
         outcome: DevilOutcome
         noticeText: string
         meters: DevilMeters
-        finalDocument: FinalDocument
+        finalRecord: FinalRecord
       }>('/api/devil/conclude', {
         method: 'POST',
         body: { sessionIdentifier: activeSession.value.sessionIdentifier, decision }
@@ -253,7 +293,7 @@ export function useDevilSession() {
         outcome: response.outcome,
         noticeText: response.noticeText,
         meters: response.meters,
-        finalDocument: response.finalDocument
+        finalRecord: response.finalRecord
       }
       persistNotice()
       return true

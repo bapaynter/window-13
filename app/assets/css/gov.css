@@ -554,3 +554,70 @@ table.registry th {
     border-bottom: 1px solid var(--line);
   }
 }
+
+.reference-chip {
+  font: inherit;
+  color: var(--link);
+  background: none;
+  border: none;
+  padding: 0 1px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.reference-chip:hover {
+  color: var(--blood);
+}
+
+.instrument {
+  border: 1px solid var(--line);
+  background: #fffdf6;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.instrument-recitals {
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.75rem;
+  font-style: italic;
+}
+
+.instrument-section {
+  margin-bottom: 1rem;
+}
+
+.definition-row {
+  padding: 0.3rem 0;
+  border-bottom: 1px dotted var(--line);
+  font-size: 0.88rem;
+}
+
+.definition-term {
+  font-weight: bold;
+}
+
+.section-number {
+  font-family: var(--font-mono);
+  color: var(--burgundy);
+  font-size: 0.8rem;
+  margin-right: 0.35rem;
+}
+
+.clause-row.is-substituted {
+  border-left-color: #7a4a00;
+  background: #fbf1dc;
+}
+
+.clause-row.is-highlighted {
+  outline: 2px solid var(--gold);
+}
+
+.clause-original {
+  color: #7a7368;
+  text-decoration: line-through;
+}
+
+.objective-panel {
+  border-left: 6px solid var(--gold);
+}

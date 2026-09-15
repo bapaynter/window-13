@@ -7,13 +7,13 @@ export default defineEventHandler(async (event) => {
   }
 
   const session = await loadSession(sessionIdentifier)
-  if (session === null || session.finalDocument === undefined) {
+  if (session === null || session.finalRecord === undefined) {
     throw createError({ statusCode: 404, statusMessage: 'No record on file for that filing.' })
   }
 
   return {
     wish: session.wish,
     noticeText: session.noticeText ?? '',
-    finalDocument: session.finalDocument
+    finalRecord: session.finalRecord
   }
 })

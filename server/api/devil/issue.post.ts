@@ -1,9 +1,9 @@
-import { generateValidatedContract } from '../../utils/devil/contractGeneration'
-import { buildIssueMessages } from '../../utils/devil/prompts'
 import { pickRandomPersonality } from '../../utils/devil/personalities'
+import { pickInstrumentTemplate } from '../../utils/devil/instrumentTemplates'
+import { generateInstrument } from '../../utils/devil/instrumentGeneration'
 import { computeSessionMeters } from '../../utils/devil/meters'
 import { createSession, saveSession } from '../../utils/devil/sessionStore'
-import { toPlayerContract } from '../../utils/devil/playerView'
+import { toPlayerInstrument } from '../../utils/devil/playerView'
 import { DRAFT_MODEL, MAXIMUM_WISH_LENGTH } from '../../utils/devil/config'
 
 interface IssueRequestBody {
@@ -25,22 +25,21 @@ export default defineEventHandler(async (event) => {
   }
 
   const personality = pickRandomPersonality()
-  const contract = await generateValidatedContract({
+  const skeleton = pickInstrumentTemplate()
+  const instrument = await generateInstrument({
+    personality,
+    skeleton,
+    wish,
     model: DRAFT_MODEL,
-    messages: buildIssueMessages(personality, wish),
-    personalityKey: personality.personalityKey,
-    maximumOutputTokens: 6000
+    maximumOutputTokens: 12000
   })
 
-  const session = createSession(wish, personality.personalityKey, contract)
+  const session = createSession(wish, personality.personalityKey, skeleton.templateIdentifier, instrument)
   await saveSession(session)
-
-  const keystoneClause = contract.clauses.find((clause) => clause.isKeystone)
-  const meters = computeSessionMeters([], keystoneClause?.clauseIdentifier ?? 0)
 
   return {
     sessionIdentifier: session.sessionIdentifier,
-    contract: toPlayerContract(contract),
-    meters
+    instrument: toPlayerInstrument(instrument),
+    meters: computeSessionMeters([])
   }
 })

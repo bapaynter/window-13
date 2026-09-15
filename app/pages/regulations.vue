@@ -3,44 +3,47 @@
     <h2>Regulations</h2>
 
     <div class="statute">
-      <h3>§ 666.1 — Standard Terms</h3>
+      <h3>§ 666.1 — The Instrument</h3>
       <p>
-        Every contract is issued with no fewer than four and no more than seven clauses. The schedule of fees is
-        attached at the time of issuance and does not change during review.
+        Every instrument is issued as a single document containing recitals, definitions, numbered provisions, and any
+        attached schedules. The applicant may read the whole instrument before acting. Nothing is withheld from the
+        applicant except the Department’s own view of which provisions control the outcome.
       </p>
     </div>
 
     <div class="statute">
-      <h3>§ 666.2 — Approval</h3>
+      <h3>§ 666.2 — Approving a Provision</h3>
       <p>
-        Approved clauses add their stated processing fee to the balance due. Approval is silent consent and cannot be
-        revoked after signature. Applicants are reminded that the balance is assessed against them, not the wish.
+        Approving a provision adds its stated processing fee to the burden. The Department reminds the applicant that
+        the burden is assessed against the applicant, not the wish.
       </p>
     </div>
 
     <div class="statute">
-      <h3>§ 666.3 — Striking</h3>
+      <h3>§ 666.3 — Striking a Provision</h3>
       <p>
-        Any clause may be struck. Striking incurs a modest administrative surcharge. One clause in each contract is
-        load-bearing: the entire agreement depends on it. Striking the load-bearing clause collapses the remainder.
-        The Department is not obligated to identify which clause it is. <span class="small-print">(It is the one whose
-        stated cost looks mildest.)</span>
+        Any provision may be struck, at an administrative surcharge that increases with each strike. A struck provision
+        is removed. Where an active severability provision covers it, however, the Department substitutes an equivalent
+        term and the strike does not take effect. Schedules themselves cannot be struck; the provision that incorporates
+        a schedule must be struck instead.
       </p>
     </div>
 
     <div class="statute">
-      <h3>§ 666.4 — Amendment</h3>
+      <h3>§ 666.4 — Amending a Provision</h3>
       <p>
-        An applicant may substitute their own wording. The Department will honor the new wording exactly, and will
-        disclose how the concealed term adapts to it. Amendment does not reduce the fee; it changes what the fee buys.
+        The applicant may substitute their own wording. The Department honours the new wording exactly, and the provision’s
+        fee rises. Some provisions cannot usefully be struck, because striking them triggers a substitution; those must be
+        amended instead. Wording that attempts to nullify a cost is folded back in and the fee doubles.
       </p>
     </div>
 
     <div class="statute">
-      <h3>§ 666.5 — Credits and Disclosure</h3>
+      <h3>§ 666.5 — Controlling Provisions</h3>
       <p>
-        Each applicant holds three credits. One credit compels a full disclosure of every concealed term in the
-        contract. Credits are spent, not loaned, and are not returned on withdrawal.
+        One or more provisions in every instrument control how the wish is performed. The Department does not identify
+        them. The applicant is expected to read the instrument, follow its cross-references, and determine which
+        provisions must be neutralized. Neutralizing only some of them yields partial performance.
       </p>
     </div>
 
