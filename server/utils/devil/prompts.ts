@@ -48,6 +48,7 @@ export function buildInstrumentMessages(
       headingHint: provision.headingHint,
       textHint: provision.textHint,
       considerationHint: provision.considerationHint,
+      roleHint: provision.roleHint,
       references: provision.references
     })),
     schedules: skeleton.schedules.map((schedule) => ({
@@ -56,28 +57,42 @@ export function buildInstrumentMessages(
       bodyHint: schedule.bodyHint,
       referencedBy: schedule.referencedBy
     })),
-    substitutionSlots: skeleton.substitutionWordingByIdentifier
+    substitutionSlots: skeleton.substitutionWordingByIdentifier,
+    laymanFallback: skeleton.laymanExplanation
   }
 
   return [
     {
       role: 'system',
-      content: `${BASE_POLICY}\n\n${buildPersonalityBlock(personality)}\n\nYou are drafting a dense legal instrument by filling in wording for a fixed structure. Return ONLY this JSON object:
+      content: `${BASE_POLICY}\n\n${buildPersonalityBlock(personality)}\n\nYou are drafting a binding instrument by filling in wording for a fixed structure. The Department grants the applicant's wish in full; that grant is absolute. Write ordinary, bland contract language.
+
+Hard rules:
+- Never write a provision that lets the Department avoid, defer, condition, dispute, or unilaterally determine performance, or that makes satisfaction a matter of its sole discretion. The wish is always performed in full.
+- The operative terms in Article 6 shape how the granted wish is delivered. Write them as ordinary, standard-looking terms. Their effect must be inferable only by a careful reader: someone connecting §1.4, §6.1 and §6.2 should be able to work it out, but no clause may announce that it produces an unwanted result.
+- The recitals and §6, read with §1.4, must state the actual mechanism by which the wish is fulfilled and what that mechanism does — concretely, not abstractly.
+- Never use the words "twist", "trap", "trick", "curse", "perversion", "keystone", or "load-bearing", and never describe a clause as adverse, unusual, a catch, or a loophole.
+- Any cross-reference you write (for example "§2.2") must match the references listed for that provision.
+- Length limits: each definition at most 600 characters, each provision at most 900, each schedule at most 700, recitals at most 1600, each layman string at most 500.
+
+Return ONLY this JSON object:
 {
   "recitals": string,
   "definitions": { "<definitionIdentifier>": { "term": string, "text": string } },
   "provisions": { "<provisionIdentifier>": { "heading": string, "text": string, "consideration": string } },
   "schedules": { "<scheduleIdentifier>": { "title": string, "body": string } },
   "substitutions": { "<severabilityIdentifier>": string },
+  "layman": {
+    "twistSummary": string,
+    "ifBypassed": string,
+    "ifPartiallyBypassed": string,
+    "ifNotBypassed": string
+  },
   "trapSummary": string
 }
 
-Requirements:
-- Fill in EVERY identifier present in the structure. Do not add or omit identifiers.
-- Write dense, dry, plausible legalese. The instrument must read as one coherent document themed on the applicant's wish.
-- Any cross-reference you write (for example "§2.2") must match the references listed for that provision.
-- Length limits: each definition at most 600 characters, each provision at most 900, each schedule at most 700, recitals at most 1600.
-- "trapSummary" is an internal engineer note (not shown to the applicant) stating plainly which provisions control the outcome and why.`
+Fill in EVERY identifier present in the structure. Do not add or omit identifiers.
+The "layman" block is written for the applicant after the matter is closed, in plain second-person English with no legalese: "twistSummary" states in one or two sentences what the operative terms actually do to the wish; "ifBypassed" states the wish as intended once those terms are removed; "ifPartiallyBypassed" states the partly-altered result; "ifNotBypassed" states the full consequence if the terms stand.
+"trapSummary" is an internal note (never shown to the applicant) naming the operative provisions and their effect.`
     },
     {
       role: 'user',
@@ -116,7 +131,7 @@ export function buildConcludeMessages(
     trapSummary: string
     neutralizedProvisionIdentifiers: string[]
     controllingProvisionIdentifiers: string[]
-    meters: { processingFee: number; administrativeSurcharge: number; burden: number }
+    meters: { administrativeSurcharge: number; assessment: number }
   }
 ): ChatMessage[] {
   const outcomeInstruction: Record<Outcome, string> = {
@@ -138,7 +153,7 @@ export function buildConcludeMessages(
     },
     {
       role: 'user',
-      content: `Original wish: "${parameters.wish}"\nOutcome to communicate: ${outcomeInstruction[parameters.outcome]}\nInternal trap note: ${parameters.trapSummary}\nControlling provisions: ${parameters.controllingProvisionIdentifiers.join(', ') || 'none'}\nNeutralized provisions: ${parameters.neutralizedProvisionIdentifiers.join(', ') || 'none'}\nProcessing fee: ${parameters.meters.processingFee}\nAdministrative surcharge: ${parameters.meters.administrativeSurcharge}\nTotal burden: ${parameters.meters.burden}`
+      content: `Original wish: "${parameters.wish}"\nOutcome to communicate: ${outcomeInstruction[parameters.outcome]}\nInternal trap note: ${parameters.trapSummary}\nOperative provisions: ${parameters.controllingProvisionIdentifiers.join(', ') || 'none'}\nNeutralized provisions: ${parameters.neutralizedProvisionIdentifiers.join(', ') || 'none'}\nAdministrative surcharge: ${parameters.meters.administrativeSurcharge}\nTotal assessment: ${parameters.meters.assessment}`
     }
   ]
 }

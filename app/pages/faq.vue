@@ -11,19 +11,10 @@
     </div>
 
     <div class="panel">
-      <div class="panel-title">Q. How do I get a better outcome?</div>
+      <div class="panel-title">Q. What do the buttons do?</div>
       <p>
-        Read the instrument and follow the cross-references. Provisions that say “notwithstanding”, that redefine a term,
-        or that pull in a schedule are usually doing the work. Neutralize every provision that controls the wish. If a
-        provision cannot be struck because it would be substituted, amend it instead.
-      </p>
-    </div>
-
-    <div class="panel">
-      <div class="panel-title">Q. I struck a provision and nothing happened.</div>
-      <p>
-        Then a severability provision covered it and the Department substituted an equivalent term. Deal with the
-        severability provision first. Note that a severability provision may itself guard against being struck.
+        Approve accepts a provision and adds its processing fee. Strike removes a provision at an increasing surcharge.
+        Amend substitutes your own wording and raises that provision’s fee.
       </p>
     </div>
 
@@ -31,6 +22,14 @@
       <div class="panel-title">Q. Can I take back an approval?</div>
       <p>
         Approvals are additive and permanent. This is stated on the form, in the regulation, and here. Yes, again.
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Q. Is the wish granted?</div>
+      <p>
+        The Department performs every wish it grants, in full and without condition. Applicants are encouraged to sign
+        and proceed.
       </p>
     </div>
 
@@ -43,9 +42,9 @@
     </div>
 
     <div class="panel">
-      <div class="panel-title">Q. Is the wish granted?</div>
+      <div class="panel-title">Q. Why is the form so slow?</div>
       <p>
-        If you sign, yes, exactly as the surviving provisions allow. That is the whole difficulty.
+        It is not slow. You are fast. Both statements are true and only one is relevant.
       </p>
     </div>
   </div>

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   TRAP_THRESHOLD,
+  SURCHARGE_PER_STRIKE,
+  SURCHARGE_PER_AMENDMENT,
   computeSessionMeters,
   determineOutcome
 } from '../server/utils/devil/meters'
@@ -9,98 +11,88 @@ import type { NegotiationAction, NegotiationActionRecord } from '../server/utils
 function buildRecord(
   round: number,
   action: NegotiationAction,
-  targetIdentifier: string,
-  processingFee = 0
+  targetIdentifier: string
 ): NegotiationActionRecord {
-  return { round, action, targetIdentifier, processingFee }
+  return { round, action, targetIdentifier }
 }
 
 describe('computeSessionMeters', () => {
   it('starts at zero', () => {
     const meters = computeSessionMeters([])
-    expect(meters.processingFee).toBe(0)
     expect(meters.administrativeSurcharge).toBe(0)
-    expect(meters.burden).toBe(0)
+    expect(meters.assessment).toBe(0)
   })
 
-  it('accumulates approved processing fees', () => {
+  it('does not assess approvals', () => {
     const meters = computeSessionMeters([
-      buildRecord(1, 'approve', '3.1', 12),
-      buildRecord(2, 'approve', '3.2', 8)
+      buildRecord(1, 'approve', '2.1'),
+      buildRecord(2, 'approve', '3.1')
     ])
-    expect(meters.processingFee).toBe(20)
-    expect(meters.burden).toBe(20)
+    expect(meters.assessment).toBe(0)
   })
 
-  it('escalates the strike surcharge by ordinal', () => {
+  it('assesses each strike at the flat rate', () => {
     const meters = computeSessionMeters([
       buildRecord(1, 'strike', '6.1'),
       buildRecord(2, 'strike', '6.2'),
-      buildRecord(3, 'strike', '7.1')
+      buildRecord(3, 'strike', '6.3')
     ])
-    expect(meters.administrativeSurcharge).toBe(5 + 10 + 15)
+    expect(meters.administrativeSurcharge).toBe(3 * SURCHARGE_PER_STRIKE)
+    expect(meters.assessment).toBe(3 * SURCHARGE_PER_STRIKE)
   })
 
-  it('escalates the amendment surcharge by ordinal', () => {
-    const meters = computeSessionMeters([buildRecord(1, 'amend', '6.1'), buildRecord(2, 'amend', '6.2')])
-    expect(meters.administrativeSurcharge).toBe(3 + 6)
+  it('assesses each amendment at the flat rate', () => {
+    const meters = computeSessionMeters([buildRecord(1, 'amend', '9.1'), buildRecord(2, 'amend', '6.1')])
+    expect(meters.administrativeSurcharge).toBe(2 * SURCHARGE_PER_AMENDMENT)
   })
 
-  it('computes burden as processing fee plus surcharge', () => {
+  it('combines strikes and amendments', () => {
     const meters = computeSessionMeters([
-      buildRecord(1, 'approve', '3.1', 10),
+      buildRecord(1, 'amend', '9.1'),
       buildRecord(2, 'strike', '6.1'),
-      buildRecord(3, 'strike', '6.2')
+      buildRecord(3, 'strike', '6.2'),
+      buildRecord(4, 'strike', '6.3')
     ])
-    expect(meters.processingFee).toBe(10)
-    expect(meters.administrativeSurcharge).toBe(15)
-    expect(meters.burden).toBe(25)
-  })
-
-  it('clamps meters at one hundred', () => {
-    const manyStrikes = Array.from({ length: 12 }, (_value, index) =>
-      buildRecord(index, 'strike', `6.${index}`)
-    )
-    expect(computeSessionMeters(manyStrikes).administrativeSurcharge).toBe(100)
+    expect(meters.assessment).toBe(SURCHARGE_PER_AMENDMENT + 3 * SURCHARGE_PER_STRIKE)
   })
 })
 
 describe('determineOutcome', () => {
   it('is a draw whenever the player walks away', () => {
     expect(
-      determineOutcome({ neutralizedControlCount: 0, totalControlCount: 2, burden: 0, decision: 'walk' })
+      determineOutcome({ neutralizedControlCount: 0, totalControlCount: 2, assessment: 0, decision: 'walk' })
     ).toBe('draw')
   })
 
-  it('is literal hell when nothing controlling is neutralized', () => {
+  it('is literal hell when nothing is neutralized', () => {
     expect(
-      determineOutcome({ neutralizedControlCount: 0, totalControlCount: 2, burden: 10, decision: 'sign' })
+      determineOutcome({ neutralizedControlCount: 0, totalControlCount: 2, assessment: 5, decision: 'sign' })
     ).toBe('literalHell')
   })
 
-  it('is partial when some but not all controlling provisions are neutralized', () => {
+  it('is partial when some are neutralized', () => {
     expect(
-      determineOutcome({ neutralizedControlCount: 1, totalControlCount: 2, burden: 10, decision: 'sign' })
+      determineOutcome({ neutralizedControlCount: 1, totalControlCount: 2, assessment: 5, decision: 'sign' })
     ).toBe('partial')
   })
 
-  it('is a clean escape when all are neutralized under the threshold', () => {
+  it('is a clean escape when all are neutralized under the ceiling', () => {
     expect(
       determineOutcome({
         neutralizedControlCount: 2,
         totalControlCount: 2,
-        burden: TRAP_THRESHOLD - 1,
+        assessment: TRAP_THRESHOLD - 1,
         decision: 'sign'
       })
     ).toBe('cleanEscape')
   })
 
-  it('is trapped when all are neutralized at or above the threshold', () => {
+  it('is trapped when the assessment reaches the ceiling', () => {
     expect(
       determineOutcome({
         neutralizedControlCount: 2,
         totalControlCount: 2,
-        burden: TRAP_THRESHOLD,
+        assessment: TRAP_THRESHOLD,
         decision: 'sign'
       })
     ).toBe('trapped')

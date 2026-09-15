@@ -49,6 +49,9 @@ export default defineEventHandler(async (event) => {
   if (session === null) {
     throw createError({ statusCode: 404, statusMessage: 'No such filing.' })
   }
+  if (session.instrument === undefined) {
+    throw createError({ statusCode: 409, statusMessage: 'The instrument is still being drawn up.' })
+  }
 
   const targetProvision = session.instrument.provisions.find(
     (provision) => provision.provisionIdentifier === targetIdentifier
@@ -57,14 +60,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'No such provision in this instrument.' })
   }
 
-  const processingFee = action === 'approve' ? targetProvision.processingFee : 0
   const nextActionRecords = [
     ...session.actionRecords,
     {
       round: session.actionRecords.length + 1,
       action,
       targetIdentifier,
-      processingFee,
       ...(action === 'amend' ? { amendmentText } : {})
     }
   ]
@@ -80,7 +81,7 @@ export default defineEventHandler(async (event) => {
         targetIdentifier,
         heading: targetProvision.heading,
         amendmentText,
-        actionSummary: buildActionSummary(action, processingFee)
+        actionSummary: buildActionSummary(action)
       }),
       jsonMode: true,
       maximumOutputTokens: 2000
@@ -93,17 +94,28 @@ export default defineEventHandler(async (event) => {
     console.error('negotiate: model call failed', error)
   }
 
-  const nextSession = {
-    ...session,
-    actionRecords: nextActionRecords
-  }
-  await saveSession(nextSession)
-
   const simulation = simulateInstrument(session.instrument, nextActionRecords)
+
+  const overrides = { ...session.provisionTextOverrides }
+  if (action === 'amend') {
+    overrides[targetIdentifier] = amendmentText
+  }
+  const substitutionSource = simulation.substitutionSourceByIdentifier[targetIdentifier]
+  if (substitutionSource !== undefined) {
+    overrides[targetIdentifier] =
+      session.instrument.substitutionWordingByIdentifier[substitutionSource] ??
+      'The Department reissues an equivalent provision on terms it determines.'
+  }
+
+  await saveSession({
+    ...session,
+    actionRecords: nextActionRecords,
+    provisionTextOverrides: overrides
+  })
 
   return {
     actionRecords: nextActionRecords,
-    instrument: toPlayerInstrument(session.instrument),
+    instrument: toPlayerInstrument(session.instrument, overrides),
     meters: computeSessionMeters(nextActionRecords),
     agentRemark,
     // Never expose which provisions control the outcome; only structural facts.
@@ -116,12 +128,12 @@ export default defineEventHandler(async (event) => {
   }
 })
 
-function buildActionSummary(action: NegotiationAction, processingFee: number): string {
+function buildActionSummary(action: NegotiationAction): string {
   if (action === 'approve') {
-    return `The applicant accepted the provision; a processing fee of ${processingFee} is added to the burden.`
+    return 'The applicant accepted the provision. Approval is not assessed.'
   }
   if (action === 'strike') {
-    return 'The applicant struck the provision. If any active severability provision covers it, the Department substitutes an equivalent term and the strike does not take effect.'
+    return 'The applicant struck the provision. If any active substitution provision covers it, the Department reissues an equivalent provision and the strike does not take effect.'
   }
-  return 'The applicant replaced the provision with their own wording; the clause fee rises and the surcharge applies.'
+  return 'The applicant replaced the provision with their own wording. The substitution, if any, and the fixed surcharge apply.'
 }

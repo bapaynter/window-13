@@ -1,6 +1,8 @@
 <script setup lang="ts">
 const DEPARTMENT_NAME = 'Department of Soul Registry'
 
+const { pendingGeneration, restoreSession } = useDevilSession()
+
 const navigationLinks = [
   { label: 'Home', path: '/' },
   { label: 'Wish Intake', path: '/wish' },
@@ -14,6 +16,7 @@ const navigationLinks = [
 const isCookieNoticeVisible = ref(false)
 
 onMounted((): void => {
+  restoreSession()
   isCookieNoticeVisible.value = localStorage.getItem('soul-registry-cookies') !== 'accepted'
 })
 
@@ -34,9 +37,10 @@ function acceptInfernalCookies(): void {
     </header>
 
     <nav class="site-nav">
-      <NuxtLink v-for="link in navigationLinks" :key="link.path" :to="link.path">
-        {{ link.label }}
-      </NuxtLink>
+      <template v-for="link in navigationLinks" :key="link.path">
+        <NuxtLink v-if="pendingGeneration === null" :to="link.path">{{ link.label }}</NuxtLink>
+        <span v-else class="nav-disabled">{{ link.label }}</span>
+      </template>
     </nav>
 
     <div class="ticker-bar" role="status" aria-live="off">

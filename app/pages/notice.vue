@@ -35,6 +35,8 @@ async function fileAnother(): Promise<void> {
       <p class="notice-text">{{ notice.noticeText }}</p>
     </div>
 
+    <LaymanSummary :layman-outcome="notice.finalRecord.laymanOutcome" />
+
     <StatementOfAccount :meters="notice.meters" />
 
     <ContractOfRecord :final-record="notice.finalRecord" />

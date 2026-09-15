@@ -1,19 +1,23 @@
-import { mkdir, readFile, writeFile, readdir } from 'node:fs/promises'
+import { mkdir, readFile, writeFile, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { randomUUID } from 'node:crypto'
 import type { Instrument } from './instrumentSchema'
 import type { PersonalityKey } from './personalityGuard'
 import type { NegotiationActionRecord, Outcome, SessionMeters } from './meters'
 import type { FinalRecord } from './instrumentRecord'
 import { DEVIL_DATA_DIRECTORY } from './config'
 
+export type GenerationStatus = 'generating' | 'ready' | 'failed'
+
 export interface SessionRecord {
   sessionIdentifier: string
   personalityKey: PersonalityKey
   wish: string
   templateIdentifier: string
-  instrument: Instrument
+  status: GenerationStatus
+  generationError?: string
+  instrument?: Instrument
   actionRecords: NegotiationActionRecord[]
+  provisionTextOverrides: Record<string, string>
   createdAt: string
   updatedAt: string
   outcome?: Outcome
@@ -27,8 +31,7 @@ export interface FilingSummary {
   wish: string
   outcome: Outcome
   createdAt: string
-  processingFee: number
-  burden: number
+  assessment: number
 }
 
 async function ensureDataDirectory(): Promise<void> {
@@ -39,20 +42,21 @@ function buildSessionPath(sessionIdentifier: string): string {
   return join(DEVIL_DATA_DIRECTORY, `${sessionIdentifier}.json`)
 }
 
-export function createSession(
+export function createSessionWithIdentifier(
+  sessionIdentifier: string,
   wish: string,
   personalityKey: PersonalityKey,
-  templateIdentifier: string,
-  instrument: Instrument
+  templateIdentifier: string
 ): SessionRecord {
   const timestamp = new Date().toISOString()
   return {
-    sessionIdentifier: randomUUID(),
+    sessionIdentifier,
     personalityKey,
     wish,
     templateIdentifier,
-    instrument,
+    status: 'generating',
     actionRecords: [],
+    provisionTextOverrides: {},
     createdAt: timestamp,
     updatedAt: timestamp
   }
@@ -64,13 +68,35 @@ export async function saveSession(record: SessionRecord): Promise<void> {
   await writeFile(buildSessionPath(record.sessionIdentifier), JSON.stringify(updatedRecord, null, 2), 'utf8')
 }
 
+export async function markGenerationReady(sessionIdentifier: string, instrument: Instrument): Promise<void> {
+  const session = await loadSession(sessionIdentifier)
+  if (session === null) {
+    return
+  }
+  await saveSession({ ...session, instrument, status: 'ready', generationError: undefined })
+}
+
+export async function markGenerationFailed(sessionIdentifier: string, message: string): Promise<void> {
+  const session = await loadSession(sessionIdentifier)
+  if (session === null) {
+    return
+  }
+  await saveSession({ ...session, status: 'failed', generationError: message })
+}
+
 export async function loadSession(sessionIdentifier: string): Promise<SessionRecord | null> {
   try {
     const rawText = await readFile(buildSessionPath(sessionIdentifier), 'utf8')
     const parsed = JSON.parse(rawText) as SessionRecord
     // Filings written before the instrument redesign cannot be replayed.
-    if (parsed.instrument === undefined || parsed.templateIdentifier === undefined) {
+    if (parsed.templateIdentifier === undefined) {
       return null
+    }
+    if (parsed.status === undefined) {
+      parsed.status = parsed.instrument === undefined ? 'generating' : 'ready'
+    }
+    if (parsed.provisionTextOverrides === undefined) {
+      parsed.provisionTextOverrides = {}
     }
     return parsed
   } catch (error) {
@@ -105,8 +131,11 @@ export async function listFilings(): Promise<FilingSummary[]> {
       wish: record.wish,
       outcome: record.outcome as Outcome,
       createdAt: record.createdAt,
-      processingFee: record.finalMeters?.processingFee ?? 0,
-      burden: record.finalMeters?.burden ?? 0
+      assessment: record.finalMeters?.assessment ?? 0
     }))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+}
+
+export async function removeSession(sessionIdentifier: string): Promise<void> {
+  await rm(buildSessionPath(sessionIdentifier), { force: true })
 }

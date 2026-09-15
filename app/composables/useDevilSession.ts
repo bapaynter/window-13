@@ -24,7 +24,6 @@ export interface PlayerProvision {
   text: string
   references: string[]
   consideration: string
-  processingFee: number
   mechanism: ProvisionMechanism
 }
 
@@ -43,16 +42,14 @@ export interface PlayerInstrument {
 }
 
 export interface DevilMeters {
-  processingFee: number
   administrativeSurcharge: number
-  burden: number
+  assessment: number
 }
 
 export interface DevilActionRecord {
   round: number
   action: 'approve' | 'strike' | 'amend'
   targetIdentifier: string
-  processingFee: number
   amendmentText?: string
 }
 
@@ -73,12 +70,12 @@ export interface FinalProvisionDisposition {
   heading: string
   text: string
   consideration: string
-  processingFee: number
   mechanism: ProvisionMechanism
   references: string[]
   disposition: ProvisionState
   isControlling: boolean
   neutralizationMethod: 'strike' | 'amend' | null
+  substitutedBy?: string
   originalText?: string
 }
 
@@ -86,8 +83,14 @@ export interface FinalActionLogEntry {
   round: number
   action: 'approve' | 'strike' | 'amend'
   targetIdentifier: string
-  feeApplied: number
   amendmentText?: string
+}
+
+export interface LaymanOutcome {
+  twistSummary: string
+  bypassStatus: 'none' | 'partial' | 'all' | 'draw'
+  bypassDescription: string
+  effectOnWish: string
 }
 
 export interface FinalRecord {
@@ -100,11 +103,11 @@ export interface FinalRecord {
   neutralizedControlIdentifiers: string[]
   danglingReferenceIdentifiers: string[]
   actionLog: FinalActionLogEntry[]
-  processingFee: number
   administrativeSurcharge: number
-  burden: number
+  assessment: number
   trapThreshold: number
   trapSummary: string
+  laymanOutcome: LaymanOutcome
 }
 
 export interface ActiveDevilSession {
@@ -128,14 +131,35 @@ export interface AgentChatMessage {
   text: string
 }
 
+export interface PendingGeneration {
+  sessionIdentifier: string
+  wish: string
+  startedAt: number
+}
+
+export type GenerationPollResult = 'generating' | 'ready' | 'failed'
+
 const SESSION_STORAGE_KEY = 'soul-registry-active-session'
 const NOTICE_STORAGE_KEY = 'soul-registry-last-notice'
+const PENDING_STORAGE_KEY = 'soul-registry-pending-generation'
 
 export function useDevilSession() {
   const activeSession = useState<ActiveDevilSession | null>('activeDevilSession', () => null)
   const notice = useState<DevilNotice | null>('activeDevilNotice', () => null)
   const isBusy = useState<boolean>('activeDevilBusy', () => false)
   const errorMessage = useState<string>('activeDevilError', () => '')
+  const pendingGeneration = useState<PendingGeneration | null>('activeDevilPending', () => null)
+
+  function persistPending(): void {
+    if (!import.meta.client) {
+      return
+    }
+    if (pendingGeneration.value === null) {
+      localStorage.removeItem(PENDING_STORAGE_KEY)
+      return
+    }
+    localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(pendingGeneration.value))
+  }
 
   function persistSession(): void {
     if (!import.meta.client) {
@@ -183,6 +207,16 @@ export function useDevilSession() {
         }
       }
     }
+    if (pendingGeneration.value === null) {
+      const rawPending = localStorage.getItem(PENDING_STORAGE_KEY)
+      if (rawPending !== null) {
+        try {
+          pendingGeneration.value = JSON.parse(rawPending) as PendingGeneration
+        } catch {
+          localStorage.removeItem(PENDING_STORAGE_KEY)
+        }
+      }
+    }
   }
 
   function resetSession(): void {
@@ -193,40 +227,83 @@ export function useDevilSession() {
     persistNotice()
   }
 
-  async function startSession(wish: string): Promise<boolean> {
-    isBusy.value = true
-    errorMessage.value = ''
-    try {
-      const response = await $fetch<{
-        sessionIdentifier: string
-        instrument: PlayerInstrument
-        meters: DevilMeters
-      }>('/api/devil/issue', { method: 'POST', body: { wish } })
+  function clearPendingGeneration(): void {
+    pendingGeneration.value = null
+    persistPending()
+  }
 
-      activeSession.value = {
-        sessionIdentifier: response.sessionIdentifier,
-        wish,
-        instrument: response.instrument,
-        actionRecords: [],
-        meters: response.meters,
-        simulation: {
-          provisionStates: {},
-          activeSeverabilityIdentifiers: [],
-          substitutedProvisionIdentifiers: [],
-          danglingReferenceIdentifiers: []
-        }
-      }
-      notice.value = null
-      persistSession()
-      persistNotice()
+  async function startSession(wish: string): Promise<boolean> {
+    errorMessage.value = ''
+    const sessionIdentifier = crypto.randomUUID()
+    pendingGeneration.value = { sessionIdentifier, wish, startedAt: Date.now() }
+    persistPending()
+
+    try {
+      await $fetch('/api/devil/issue', {
+        method: 'POST',
+        body: { wish, sessionIdentifier }
+      })
       return true
     } catch (error) {
       errorMessage.value = 'The window rejected your submission. Please try again.'
+      clearPendingGeneration()
       console.error('startSession failed', error)
       return false
-    } finally {
-      isBusy.value = false
     }
+  }
+
+  async function pollGenerationStatus(): Promise<GenerationPollResult> {
+    if (pendingGeneration.value === null) {
+      return 'failed'
+    }
+
+    try {
+      const response = await $fetch<{
+        status: 'generating' | 'ready' | 'failed' | 'unknown'
+        instrument?: PlayerInstrument
+        meters?: DevilMeters
+      }>('/api/devil/issue/status', {
+        query: { sessionIdentifier: pendingGeneration.value.sessionIdentifier }
+      })
+
+      if (response.status === 'ready' && response.instrument !== undefined && response.meters !== undefined) {
+        activeSession.value = {
+          sessionIdentifier: pendingGeneration.value.sessionIdentifier,
+          wish: pendingGeneration.value.wish,
+          instrument: response.instrument,
+          actionRecords: [],
+          meters: response.meters,
+          simulation: {
+            provisionStates: {},
+            activeSeverabilityIdentifiers: [],
+            substitutedProvisionIdentifiers: [],
+            danglingReferenceIdentifiers: []
+          }
+        }
+        persistSession()
+        clearPendingGeneration()
+        return 'ready'
+      }
+
+      if (response.status === 'failed' || response.status === 'unknown') {
+        errorMessage.value =
+          response.status === 'failed'
+            ? 'The assigned window could not process your instrument. Please file again.'
+            : 'Your intake record could not be located. Please file again.'
+        clearPendingGeneration()
+        return 'failed'
+      }
+
+      return 'generating'
+    } catch (error) {
+      console.error('pollGenerationStatus failed', error)
+      return 'generating'
+    }
+  }
+
+  function abandonPendingGeneration(): void {
+    errorMessage.value = ''
+    clearPendingGeneration()
   }
 
   async function takeAction(
@@ -311,9 +388,12 @@ export function useDevilSession() {
     notice,
     isBusy,
     errorMessage,
+    pendingGeneration,
     restoreSession,
     resetSession,
     startSession,
+    pollGenerationStatus,
+    abandonPendingGeneration,
     takeAction,
     conclude
   }

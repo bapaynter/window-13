@@ -2,7 +2,7 @@ import type { Instrument, NeutralizationMethod, ProvisionMechanism } from './ins
 import type { InstrumentSimulation, ProvisionState } from './instrumentSimulation'
 import type { NegotiationAction, NegotiationActionRecord, Outcome, SessionMeters } from './meters'
 import { TRAP_THRESHOLD } from './meters'
-import type { PlayerDefinition, PlayerSchedule } from './playerView'
+import type { PlayerDefinition, PlayerSchedule, ProvisionTextOverrides } from './playerView'
 
 export interface FinalProvisionDisposition {
   provisionIdentifier: string
@@ -10,12 +10,12 @@ export interface FinalProvisionDisposition {
   heading: string
   text: string
   consideration: string
-  processingFee: number
   mechanism: ProvisionMechanism
   references: string[]
   disposition: ProvisionState
   isControlling: boolean
   neutralizationMethod: NeutralizationMethod | null
+  substitutedBy?: string
   originalText?: string
 }
 
@@ -23,8 +23,14 @@ export interface FinalActionLogEntry {
   round: number
   action: NegotiationAction
   targetIdentifier: string
-  feeApplied: number
   amendmentText?: string
+}
+
+export interface LaymanOutcome {
+  twistSummary: string
+  bypassStatus: 'none' | 'partial' | 'all' | 'draw'
+  bypassDescription: string
+  effectOnWish: string
 }
 
 export interface FinalRecord {
@@ -37,51 +43,106 @@ export interface FinalRecord {
   neutralizedControlIdentifiers: string[]
   danglingReferenceIdentifiers: string[]
   actionLog: FinalActionLogEntry[]
-  processingFee: number
   administrativeSurcharge: number
-  burden: number
+  assessment: number
   trapThreshold: number
   trapSummary: string
+  laymanOutcome: LaymanOutcome
 }
 
-function findLatestAmendmentText(
-  actionRecords: NegotiationActionRecord[],
-  provisionIdentifier: string
-): string | null {
-  const amendments = actionRecords.filter(
-    (record) => record.action === 'amend' && record.targetIdentifier === provisionIdentifier
+function formatIdentifiers(identifiers: string[]): string {
+  return identifiers.map((identifier) => `§${identifier}`).join(', ')
+}
+
+function buildLaymanOutcome(parameters: {
+  instrument: Instrument
+  actionRecords: NegotiationActionRecord[]
+  simulation: InstrumentSimulation
+  outcome: Outcome
+}): LaymanOutcome {
+  const { instrument, actionRecords, simulation, outcome } = parameters
+  const neutralized = simulation.neutralizedControlIdentifiers
+  const remaining = instrument.controllingProvisionIdentifiers.filter(
+    (identifier) => !neutralized.includes(identifier)
   )
-  const lastAmendment = amendments.at(-1)
-  return lastAmendment?.amendmentText ?? null
+  const amendedSeverability = actionRecords
+    .filter(
+      (record) =>
+        record.action === 'amend' && instrument.severabilityProvisionIdentifiers.includes(record.targetIdentifier)
+    )
+    .map((record) => record.targetIdentifier)
+
+  if (outcome === 'draw') {
+    return {
+      twistSummary: instrument.laymanExplanation.twistSummary,
+      bypassStatus: 'draw',
+      bypassDescription: 'You withdrew without signing. The Instrument was not executed.',
+      effectOnWish: 'Your wish is not granted. No action was taken.'
+    }
+  }
+
+  if (neutralized.length === 0) {
+    return {
+      twistSummary: instrument.laymanExplanation.twistSummary,
+      bypassStatus: 'none',
+      bypassDescription:
+        remaining.length > 0
+          ? `No provision was neutralized. ${formatIdentifiers(remaining)} remain in force.`
+          : 'No provision was neutralized.',
+      effectOnWish: instrument.laymanExplanation.ifNotBypassed
+    }
+  }
+
+  if (remaining.length === 0) {
+    const actions =
+      amendedSeverability.length > 0
+        ? `You amended ${formatIdentifiers(amendedSeverability)} and struck ${formatIdentifiers(neutralized)}.`
+        : `You struck ${formatIdentifiers(neutralized)}.`
+    return {
+      twistSummary: instrument.laymanExplanation.twistSummary,
+      bypassStatus: 'all',
+      bypassDescription: `${actions} Every term that altered your wish is neutralized.`,
+      effectOnWish: instrument.laymanExplanation.ifBypassed
+    }
+  }
+
+  return {
+    twistSummary: instrument.laymanExplanation.twistSummary,
+    bypassStatus: 'partial',
+    bypassDescription: `You neutralized ${formatIdentifiers(neutralized)}. ${formatIdentifiers(remaining)} remain in force.`,
+    effectOnWish: instrument.laymanExplanation.ifPartiallyBypassed
+  }
 }
 
 export function buildFinalRecord(parameters: {
   instrument: Instrument
   actionRecords: NegotiationActionRecord[]
+  overrides: ProvisionTextOverrides
   simulation: InstrumentSimulation
   meters: SessionMeters
   outcome: Outcome
 }): FinalRecord {
-  const { instrument, actionRecords, simulation, meters, outcome } = parameters
+  const { instrument, actionRecords, overrides, simulation, meters, outcome } = parameters
   const controllingIdentifiers = new Set(instrument.controllingProvisionIdentifiers)
 
   const provisions: FinalProvisionDisposition[] = instrument.provisions.map((provision) => {
-    const amendmentText = findLatestAmendmentText(actionRecords, provision.provisionIdentifier)
+    const override = overrides[provision.provisionIdentifier]
     const disposition = simulation.provisionStates[provision.provisionIdentifier] ?? 'untouched'
+    const substitutedBy = simulation.substitutionSourceByIdentifier[provision.provisionIdentifier]
     return {
       provisionIdentifier: provision.provisionIdentifier,
       sectionNumber: provision.sectionNumber,
       heading: provision.heading,
-      text: amendmentText ?? provision.text,
+      text: override ?? provision.text,
       consideration: provision.consideration,
-      processingFee: provision.processingFee,
       mechanism: provision.mechanism,
       references: [...provision.references],
       disposition,
       isControlling: controllingIdentifiers.has(provision.provisionIdentifier),
       neutralizationMethod:
         instrument.neutralizationMethodByIdentifier[provision.provisionIdentifier] ?? null,
-      ...(amendmentText !== null ? { originalText: provision.text } : {})
+      ...(substitutedBy !== undefined ? { substitutedBy } : {}),
+      ...(override !== undefined ? { originalText: provision.text } : {})
     }
   })
 
@@ -108,13 +169,12 @@ export function buildFinalRecord(parameters: {
       round: record.round,
       action: record.action,
       targetIdentifier: record.targetIdentifier,
-      feeApplied: record.processingFee,
       ...(record.amendmentText !== undefined ? { amendmentText: record.amendmentText } : {})
     })),
-    processingFee: meters.processingFee,
     administrativeSurcharge: meters.administrativeSurcharge,
-    burden: meters.burden,
+    assessment: meters.assessment,
     trapThreshold: TRAP_THRESHOLD,
-    trapSummary: instrument.trapSummary
+    trapSummary: instrument.trapSummary,
+    laymanOutcome: buildLaymanOutcome({ instrument, actionRecords, simulation, outcome })
   }
 }

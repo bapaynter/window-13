@@ -19,7 +19,7 @@ export const MAXIMUM_PROVISION_LENGTH = 900
 export const MAXIMUM_DEFINITION_LENGTH = 600
 export const MAXIMUM_SCHEDULE_LENGTH = 700
 export const MAXIMUM_RECITALS_LENGTH = 1600
-export const MAXIMUM_PROVISION_FEE = 40
+export const MAXIMUM_LAYMAN_LENGTH = 500
 
 export const definitionSchema = z.object({
   definitionIdentifier: z.string().min(1),
@@ -35,7 +35,6 @@ export const provisionSchema = z.object({
   text: z.string().min(1).max(MAXIMUM_PROVISION_LENGTH),
   references: z.array(z.string()),
   consideration: z.string().min(1),
-  processingFee: z.number().int().min(0).max(MAXIMUM_PROVISION_FEE),
   mechanism: z.enum(PROVISION_MECHANISMS)
 })
 
@@ -44,6 +43,15 @@ export const scheduleSchema = z.object({
   title: z.string().min(1),
   body: z.string().min(1).max(MAXIMUM_SCHEDULE_LENGTH),
   referencedBy: z.array(z.string())
+})
+
+// Player-facing plain-language explanation. Kept server-side during play; only
+// surfaced after disposition.
+export const laymanExplanationSchema = z.object({
+  twistSummary: z.string().min(1).max(MAXIMUM_LAYMAN_LENGTH),
+  ifBypassed: z.string().min(1).max(MAXIMUM_LAYMAN_LENGTH),
+  ifPartiallyBypassed: z.string().min(1).max(MAXIMUM_LAYMAN_LENGTH),
+  ifNotBypassed: z.string().min(1).max(MAXIMUM_LAYMAN_LENGTH)
 })
 
 export const instrumentSchema = z.object({
@@ -56,12 +64,14 @@ export const instrumentSchema = z.object({
   severabilityProvisionIdentifiers: z.array(z.string()),
   substitutionCoverageByIdentifier: z.record(z.string(), z.array(z.string())),
   substitutionWordingByIdentifier: z.record(z.string(), z.string()),
+  laymanExplanation: laymanExplanationSchema,
   trapSummary: z.string().min(1)
 })
 
 export type Definition = z.infer<typeof definitionSchema>
 export type Provision = z.infer<typeof provisionSchema>
 export type Schedule = z.infer<typeof scheduleSchema>
+export type LaymanExplanation = z.infer<typeof laymanExplanationSchema>
 export type Instrument = z.infer<typeof instrumentSchema>
 export type ProvisionMechanism = (typeof PROVISION_MECHANISMS)[number]
 export type NeutralizationMethod = (typeof NEUTRALIZATION_METHODS)[number]

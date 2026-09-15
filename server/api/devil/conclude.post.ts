@@ -6,7 +6,7 @@ import {
   determineOutcome,
   type SignatureDecision
 } from '../../utils/devil/meters'
-import { simulateInstrument } from '../../utils/devil/instrumentSimulation'
+import { simulateInstrument, findUnresolvedProvisionIdentifiers } from '../../utils/devil/instrumentSimulation'
 import { buildFinalRecord } from '../../utils/devil/instrumentRecord'
 import { loadSession, saveSession } from '../../utils/devil/sessionStore'
 import { CONCLUDE_MODEL } from '../../utils/devil/config'
@@ -35,13 +35,27 @@ export default defineEventHandler(async (event) => {
   if (session === null) {
     throw createError({ statusCode: 404, statusMessage: 'No such filing.' })
   }
+  if (session.instrument === undefined) {
+    throw createError({ statusCode: 409, statusMessage: 'The instrument is still being drawn up.' })
+  }
 
   const simulation = simulateInstrument(session.instrument, session.actionRecords)
+
+  if (decision === 'sign') {
+    const unresolved = findUnresolvedProvisionIdentifiers(session.instrument, simulation)
+    if (unresolved.length > 0) {
+      throw createError({
+        statusCode: 409,
+        statusMessage: 'Every provision must be dispositioned before the Instrument can be executed.'
+      })
+    }
+  }
+
   const meters = computeSessionMeters(session.actionRecords)
   const outcome = determineOutcome({
     neutralizedControlCount: simulation.neutralizedControlCount,
     totalControlCount: simulation.totalControlCount,
-    burden: meters.burden,
+    assessment: meters.assessment,
     decision
   })
 
@@ -78,6 +92,7 @@ export default defineEventHandler(async (event) => {
   const finalRecord = buildFinalRecord({
     instrument: session.instrument,
     actionRecords: session.actionRecords,
+    overrides: session.provisionTextOverrides,
     simulation,
     meters,
     outcome

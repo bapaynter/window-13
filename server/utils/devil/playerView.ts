@@ -14,7 +14,6 @@ export interface PlayerProvision {
   text: string
   references: string[]
   consideration: string
-  processingFee: number
   mechanism: ProvisionMechanism
 }
 
@@ -32,9 +31,15 @@ export interface PlayerInstrument {
   schedules: PlayerSchedule[]
 }
 
+export type ProvisionTextOverrides = Record<string, string>
+
 // Control flags (controlling provisions, neutralization methods, severability
 // coverage, trap summary) stay server-side. Exposing them would hand over the answer.
-export function toPlayerInstrument(instrument: Instrument): PlayerInstrument {
+// Overrides carry the effective text of amended or substituted provisions.
+export function toPlayerInstrument(
+  instrument: Instrument,
+  overrides: ProvisionTextOverrides = {}
+): PlayerInstrument {
   return {
     recitals: instrument.recitals,
     definitions: instrument.definitions.map((definition) => ({
@@ -47,10 +52,9 @@ export function toPlayerInstrument(instrument: Instrument): PlayerInstrument {
       provisionIdentifier: provision.provisionIdentifier,
       sectionNumber: provision.sectionNumber,
       heading: provision.heading,
-      text: provision.text,
+      text: overrides[provision.provisionIdentifier] ?? provision.text,
       references: provision.references,
       consideration: provision.consideration,
-      processingFee: provision.processingFee,
       mechanism: provision.mechanism
     })),
     schedules: instrument.schedules.map((schedule) => ({

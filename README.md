@@ -14,43 +14,45 @@ npm run dev             # http://localhost:3000
 
 ## Play
 
-1. **Wish Intake** (`/wish`) — state one wish.
-2. **Instrument** (`/contract`) — read the document. Definitions, provisions, and schedules are all visible. `§` references are clickable and provisions list their backlinks.
-   - `[APPROVE]` adds the provision's processing fee.
-   - `[STRIKE]` removes a provision. If a severability provision covers it, an equivalent term is substituted and the strike does not take effect.
-   - `[AMEND]` rewrites a provision. Some provisions can only be neutralized by amendment.
+1. **Wish Intake** (`/wish`) — state one wish. You are placed in a queue while the instrument is drawn up; the waiting screen (`/waiting`) shows your ticket number and survives a refresh, since generation runs in the background and the page polls for the result. After ~90 seconds you can abandon the ticket and return to intake. If drafting fails after several attempts the ticket is failed and you can refile — the game never falls back to placeholder text.
+2. **Instrument** (`/contract`) — read the document. Definitions, provisions, and schedules are all visible. `§` references are clickable and provisions list their backlinks. Every provision must be dispositioned before you can sign.
+   - `[APPROVE]` accepts a provision. Approval is free.
+   - `[STRIKE]` removes a provision, at a fixed surcharge. If an active substitution provision covers it, an equivalent provision is reissued and the strike does not take effect.
+   - `[AMEND]` rewrites a provision, at a fixed surcharge. Amending a substitution provision disables it.
 3. **Sign or Withdraw.** Withdrawal is a neutral draw.
 
-Fees and surcharges combine into a **total burden**. The trap threshold (60) applies to the burden; repeat strikes and amendments are surcharged at an increasing rate.
+Approval is free; each strike (4) or amendment (3) is assessed. The **assessment ceiling is 20**. A correct line costs 8–15 depending on structure, so one mis-edit still fits and two will trap you.
 
-Outcomes: **Clean Escape** (all controlling provisions neutralized, burden under 60), **Trapped** (neutralized, burden 60+), **Partial** (some neutralized), **Literal Hell** (none), **Draw** (walked away).
+Outcomes: **Clean Escape** (the operative terms are neutralized, assessment under 20), **Trapped** (neutralized, assessment 20+), **Partial** (some neutralized), **Literal Hell** (none), **Draw** (walked away).
 
 ## Contract of Record
 
-After you sign or withdraw, the office supplies **Attachment A**: every provision with its disposition, which provisions were controlling and whether each was neutralized, any amendment wording you filed, dangling references, your full record of proceedings, and burden against threshold. Past filings are reopenable from `/filings`.
+After you sign or withdraw the office supplies **In Plain Terms** — what the document did to your wish, what you did about it, and what the wish actually becomes — followed by **Attachment A**: every provision with its disposition, which terms were operative and whether each was neutralized, any amendment wording you filed, dangling references, and your full record of proceedings. Past filings are reopenable from `/filings`.
 
 ## The clerk
 
-Three voices — a tenured window clerk, an actuary, an auditor — one randomly assigned per session. Mechanically identical. The active voice is never named to the player and never identifies the controlling provisions.
+Three voices — a tenured window clerk, an actuary, an auditor — one randomly assigned per session. Mechanically identical. The active voice is never named to the player and never identifies the operative terms.
 
 ## Stack
 
 - Nuxt 4 (Vue 3 + Nitro server routes). OpenRouter is called server-side only.
-- **Templates + LLM wording:** code templates define the provision graph and a solvable controlling chain; the model only writes the legalese, which is validated against the schema and clamped to length limits, with a deterministic fallback so the game never dead-ends.
-- The puzzle is pure and testable: `instrumentSimulation.ts` (severability, substitution, amend-only, cascade), `instrumentTemplates.ts` (five archetypes, each verified solvable), `meters.ts` (burden), `instrumentRecord.ts` (post-game record).
-- Control flags never leave the server during play.
+- **Templates + LLM wording:** the skeleton fixes the provision graph and a solvable operative chain; the model only writes the legalese, which is validated against the schema and clamped to length limits, with a deterministic fallback so the game never dead-ends.
+- The puzzle is pure and testable: `instrumentSimulation.ts` (severability, substitution, cascade), `instrumentTemplates.ts` (the canonical skeleton, each structure verified solvable), `meters.ts` (assessment), `instrumentRecord.ts` (post-game record + plain terms).
+- Control flags and the plain-language explanation never leave the server during play.
+- Instrument drafting retries with an escalating completion budget (deepseek-v4.1-flash is a reasoning model, so truncated replies are retried). If every attempt fails, the ticket fails and the player refiles; the generator never substitutes placeholder text. Attempt/success/failure counts are written to `data/generation-stats.json` and exposed at `GET /api/devil/generation-stats` so reliability can be tracked.
+- Intake is asynchronous: `POST /api/devil/issue` saves a `generating` session and returns immediately; generation continues in the background and the waiting screen polls `GET /api/devil/issue/status`. A generation still pending after two minutes is treated as failed. The wait screen never depends on the in-flight request, so a reload resumes polling.
 - Filings persisted as JSON under `data/sessions/`.
 
-## Instrument archetypes
+## The twist
 
-Five trap structures, chosen at random per session:
+The Department **grants every wish in full and without condition**. The trap is a literal reading: a word from your wish is defined, applied, and given priority so that the granted wish resolves badly. The Instrument never admits this — the only way to catch it is to read the cross-references.
 
-- **Precedence and survival** — a "notwithstanding" clause plus a survival clause keep the trap alive.
-- **Hostile defined term** — a definition is broadened, and definitions are made to control; amend the definition, strike the priority clause.
-- **Incorporated schedule** — the harmful material sits in a schedule; strike the incorporating clauses, not the schedule.
-- **Ambiguity** — every conflict and ambiguity is routed in the Department's favour.
-- **Severability guard** — a self-protecting severability clause substitutes anything you strike; amend it first, then strike.
+Structure varies per session:
 
+- The operative chain is **two or three** provisions (`canonical-2-*` / `canonical-3-*`).
+- About half the instruments include a **substitution clause** that reissues anything you strike, so those terms must be amended rather than struck (`canonical-*-guarded`).
+
+Neutralizing the operative chain leaves the grant as you intended it.
 ## Tests
 
 ```bash

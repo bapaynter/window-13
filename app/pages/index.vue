@@ -4,9 +4,8 @@
     <div class="panel">
       <div class="panel-title">Notice to Applicants</div>
       <p>
-        This office processes exactly one wish per applicant per visit. Your wish will be issued as a formal contract
-        with standard terms. Review each clause. You may approve, strike, or amend any clause, or spend an available
-        credit to compel disclosure of concealed terms.
+        This office processes exactly one wish per applicant per visit. Your wish will be issued as a formal instrument.
+        Read it in full, then sign to proceed. You may approve, strike, or amend provisions before signing.
       </p>
       <p>
         When the contract is acceptable, sign it. If it is not, you may leave. Leaving is permitted. Leaving is
@@ -31,10 +30,6 @@
           <tr>
             <td>Wishes per visit</td>
             <td>One (1)</td>
-          </tr>
-          <tr>
-            <td>Available credits</td>
-            <td>Three (3), non-renewable</td>
           </tr>
           <tr>
             <td>Right to withdraw</td>

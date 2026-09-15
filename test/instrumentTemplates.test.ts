@@ -1,16 +1,25 @@
 import { describe, it, expect } from 'vitest'
 import { validateInstrument } from '../server/utils/devil/instrumentSchema'
 import { simulateInstrument } from '../server/utils/devil/instrumentSimulation'
-import { buildFallbackInstrument, INSTRUMENT_TEMPLATES, pickInstrumentTemplate } from '../server/utils/devil/instrumentTemplates'
-import type { InstrumentSkeleton } from '../server/utils/devil/instrumentTemplates'
+import {
+  buildFallbackInstrument,
+  buildInstrumentSkeleton,
+  buildTemplateIdentifier,
+  pickInstrumentSkeleton,
+  type InstrumentSkeleton
+} from '../server/utils/devil/instrumentTemplates'
+import { computeSessionMeters, determineOutcome, TRAP_THRESHOLD } from '../server/utils/devil/meters'
 import type { NegotiationAction, NegotiationActionRecord } from '../server/utils/devil/meters'
 
-function buildRecord(
-  round: number,
-  action: NegotiationAction,
-  targetIdentifier: string
-): NegotiationActionRecord {
-  return { round, action, targetIdentifier, processingFee: 0 }
+const ALL_STRUCTURES = [
+  { twistChainLength: 2 as const, hasSeverability: false },
+  { twistChainLength: 2 as const, hasSeverability: true },
+  { twistChainLength: 3 as const, hasSeverability: false },
+  { twistChainLength: 3 as const, hasSeverability: true }
+]
+
+function buildRecord(round: number, action: NegotiationAction, targetIdentifier: string): NegotiationActionRecord {
+  return { round, action, targetIdentifier }
 }
 
 function solveCorrectly(skeleton: InstrumentSkeleton): NegotiationActionRecord[] {
@@ -21,84 +30,128 @@ function solveCorrectly(skeleton: InstrumentSkeleton): NegotiationActionRecord[]
     round += 1
     records.push(buildRecord(round, 'amend', severabilityIdentifier))
   }
-  for (const controllingIdentifier of instrument.controllingProvisionIdentifiers) {
-    const method = instrument.neutralizationMethodByIdentifier[controllingIdentifier]
-    round += 1
-    records.push(buildRecord(round, method, controllingIdentifier))
+  for (const provision of instrument.provisions) {
+    if (instrument.controllingProvisionIdentifiers.includes(provision.provisionIdentifier)) {
+      round += 1
+      records.push(buildRecord(round, 'strike', provision.provisionIdentifier))
+    } else if (!instrument.severabilityProvisionIdentifiers.includes(provision.provisionIdentifier)) {
+      round += 1
+      records.push(buildRecord(round, 'approve', provision.provisionIdentifier))
+    }
   }
   return records
 }
 
-function strikeEverything(skeleton: InstrumentSkeleton): NegotiationActionRecord[] {
-  const instrument = buildFallbackInstrument(skeleton)
-  const targets = [
-    ...instrument.severabilityProvisionIdentifiers,
-    ...instrument.controllingProvisionIdentifiers
-  ]
-  return targets.map((targetIdentifier, index) => buildRecord(index + 1, 'strike', targetIdentifier))
-}
-
-describe('instrument templates', () => {
-  it('ships five archetypes with unique identifiers', () => {
-    const identifiers = INSTRUMENT_TEMPLATES.map((template) => template.templateIdentifier)
-    expect(new Set(identifiers).size).toBe(identifiers.length)
-    expect(identifiers.length).toBe(5)
-  })
-
-  it('every template assembles into a valid instrument', () => {
-    for (const template of INSTRUMENT_TEMPLATES) {
-      const result = validateInstrument(buildFallbackInstrument(template))
-      expect(result.isValid, `template ${template.templateIdentifier} should validate`).toBe(true)
+describe('instrument skeleton', () => {
+  it('validates for every structure combination', () => {
+    for (const options of ALL_STRUCTURES) {
+      const result = validateInstrument(buildFallbackInstrument(buildInstrumentSkeleton(options)))
+      expect(result.isValid, `structure ${JSON.stringify(options)} should validate`).toBe(true)
     }
   })
 
-  it('every template has a correct solution that neutralizes the trap', () => {
-    for (const template of INSTRUMENT_TEMPLATES) {
-      const instrument = buildFallbackInstrument(template)
-      const simulation = simulateInstrument(instrument, solveCorrectly(template))
+  it('is solvable for every structure combination', () => {
+    for (const options of ALL_STRUCTURES) {
+      const skeleton = buildInstrumentSkeleton(options)
+      const simulation = simulateInstrument(buildFallbackInstrument(skeleton), solveCorrectly(skeleton))
       expect(
         simulation.isTrapNeutralized,
-        `template ${template.templateIdentifier} should be solvable`
+        `structure ${JSON.stringify(options)} should be solvable`
       ).toBe(true)
     }
   })
 
-  it('every template has at least one controlling provision and a method for each', () => {
-    for (const template of INSTRUMENT_TEMPLATES) {
-      const instrument = buildFallbackInstrument(template)
-      expect(instrument.controllingProvisionIdentifiers.length).toBeGreaterThan(0)
-      for (const controllingIdentifier of instrument.controllingProvisionIdentifiers) {
-        expect(instrument.neutralizationMethodByIdentifier[controllingIdentifier]).toBeDefined()
+  it('has a winning line under the ceiling for every structure', () => {
+    for (const options of ALL_STRUCTURES) {
+      const skeleton = buildInstrumentSkeleton(options)
+      const records = solveCorrectly(skeleton)
+      const meters = computeSessionMeters(records)
+      const simulation = simulateInstrument(buildFallbackInstrument(skeleton), records)
+      const outcome = determineOutcome({
+        neutralizedControlCount: simulation.neutralizedControlCount,
+        totalControlCount: simulation.totalControlCount,
+        assessment: meters.assessment,
+        decision: 'sign'
+      })
+      expect(meters.assessment, `${JSON.stringify(options)} should fit under the ceiling`).toBeLessThan(TRAP_THRESHOLD)
+      expect(outcome, `${JSON.stringify(options)} should be winnable`).toBe('cleanEscape')
+    }
+  })
+
+  it('cannot be beaten by striking the twist blind when severability is present', () => {
+    const skeleton = buildInstrumentSkeleton({ twistChainLength: 3, hasSeverability: true })
+    const instrument = buildFallbackInstrument(skeleton)
+    const strikes = instrument.controllingProvisionIdentifiers.map((identifier, index) =>
+      buildRecord(index + 1, 'strike', identifier)
+    )
+    expect(simulateInstrument(instrument, strikes).isTrapNeutralized).toBe(false)
+  })
+
+  it('never marks the grant as controlling', () => {
+    for (const options of ALL_STRUCTURES) {
+      expect(buildInstrumentSkeleton(options).controllingProvisionIdentifiers).not.toContain('2.1')
+    }
+  })
+
+  it('has one controlling provision per twist-chain length', () => {
+    expect(buildInstrumentSkeleton({ twistChainLength: 2, hasSeverability: false }).controllingProvisionIdentifiers).toHaveLength(2)
+    expect(buildInstrumentSkeleton({ twistChainLength: 3, hasSeverability: false }).controllingProvisionIdentifiers).toHaveLength(3)
+  })
+
+  it('contains no evasion or meta language in its fallback text', () => {
+    const forbidden = [
+      'sole determination',
+      'may defer',
+      'any act or omission',
+      'satisfied by any',
+      'no requirement',
+      'twist',
+      'trap',
+      'curse',
+      'perversion',
+      'monkey',
+      'load-bearing',
+      'keystone'
+    ]
+    for (const options of ALL_STRUCTURES) {
+      const instrument = buildFallbackInstrument(buildInstrumentSkeleton(options))
+      const playerFacingText = [
+        instrument.recitals,
+        ...instrument.definitions.flatMap((definition) => [definition.term, definition.text]),
+        ...instrument.provisions.flatMap((provision) => [provision.heading, provision.text, provision.consideration]),
+        ...instrument.schedules.flatMap((schedule) => [schedule.title, schedule.body])
+      ]
+        .join(' ')
+        .toLowerCase()
+      for (const phrase of forbidden) {
+        expect(playerFacingText, `fallback text must not contain "${phrase}"`).not.toContain(phrase)
       }
     }
   })
 
-  it('striking everything fails on templates that require amendment', () => {
-    for (const templateIdentifier of ['definedTerm', 'severability']) {
-      const template = INSTRUMENT_TEMPLATES.find(
-        (candidate) => candidate.templateIdentifier === templateIdentifier
-      )
-      if (template === undefined) {
-        throw new Error(`template not found: ${templateIdentifier}`)
-      }
-      const simulation = simulateInstrument(buildFallbackInstrument(template), strikeEverything(template))
-      expect(simulation.isTrapNeutralized, `${templateIdentifier} should not be beatable by striking everything`).toBe(false)
-    }
+  it('carries a layman explanation with all four fields', () => {
+    const layman = buildInstrumentSkeleton({ twistChainLength: 2, hasSeverability: false }).laymanExplanation
+    expect(layman.twistSummary.length).toBeGreaterThan(0)
+    expect(layman.ifBypassed.length).toBeGreaterThan(0)
+    expect(layman.ifPartiallyBypassed.length).toBeGreaterThan(0)
+    expect(layman.ifNotBypassed.length).toBeGreaterThan(0)
   })
 
-  it('ships around eighteen provisions per instrument', () => {
-    for (const template of INSTRUMENT_TEMPLATES) {
-      const instrument = buildFallbackInstrument(template)
-      expect(instrument.provisions.length).toBeGreaterThanOrEqual(16)
-      expect(instrument.provisions.length).toBeLessThanOrEqual(20)
-    }
-  })
-
-  it('random selection reaches every template', () => {
+  it('reaches every structure from random selection', () => {
     const seen = new Set<string>()
     for (let index = 0; index < 200; index += 1) {
-      seen.add(pickInstrumentTemplate().templateIdentifier)
+      seen.add(pickInstrumentSkeleton().templateIdentifier)
     }
-    expect(seen.size).toBe(INSTRUMENT_TEMPLATES.length)
+    for (const options of ALL_STRUCTURES) {
+      expect(seen.has(buildTemplateIdentifier(options))).toBe(true)
+    }
+  })
+
+  it('keeps the instrument between ten and thirteen provisions', () => {
+    for (const options of ALL_STRUCTURES) {
+      const count = buildInstrumentSkeleton(options).provisions.length
+      expect(count).toBeGreaterThanOrEqual(10)
+      expect(count).toBeLessThanOrEqual(13)
+    }
   })
 })

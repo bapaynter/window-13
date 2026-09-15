@@ -41,14 +41,14 @@ function isClickable(identifier: string): boolean {
 <template>
   <span>
     <template v-for="(token, position) in tokens" :key="position">
-      <button
+      <a
         v-if="token.kind === 'reference' && isClickable(token.identifier)"
         class="reference-chip"
-        type="button"
-        @click="emit('referenceClick', token.identifier)"
+        :href="`#provision-${token.identifier}`"
+        @click.prevent="emit('referenceClick', token.identifier)"
       >
         {{ token.value }}
-      </button>
+      </a>
       <span v-else>{{ token.value }}</span>
     </template>
   </span>

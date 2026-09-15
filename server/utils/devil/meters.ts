@@ -1,6 +1,6 @@
-export const TRAP_THRESHOLD = 60
-export const SURCHARGE_PER_STRIKE_ORDINAL = 5
-export const SURCHARGE_PER_AMENDMENT_ORDINAL = 3
+export const TRAP_THRESHOLD = 20
+export const SURCHARGE_PER_STRIKE = 4
+export const SURCHARGE_PER_AMENDMENT = 3
 export const MAXIMUM_METER_VALUE = 100
 
 export type NegotiationAction = 'approve' | 'strike' | 'amend'
@@ -11,53 +11,41 @@ export interface NegotiationActionRecord {
   round: number
   action: NegotiationAction
   targetIdentifier: string
-  processingFee: number
   amendmentText?: string
 }
 
 export interface SessionMeters {
-  processingFee: number
   administrativeSurcharge: number
-  burden: number
+  assessment: number
 }
 
 function clampToMeterRange(value: number): number {
   return Math.max(0, Math.min(MAXIMUM_METER_VALUE, value))
 }
 
+// Approval is free. Only editing the Instrument (striking, amending) is assessed.
 export function computeSessionMeters(actionRecords: NegotiationActionRecord[]): SessionMeters {
-  const processingFee = actionRecords
-    .filter((record) => record.action === 'approve')
-    .reduce((total, record) => total + record.processingFee, 0)
-
-  let strikeCount = 0
-  let amendmentCount = 0
-  let administrativeSurcharge = 0
-
-  for (const record of actionRecords) {
+  const administrativeSurcharge = actionRecords.reduce((total, record) => {
     if (record.action === 'strike') {
-      strikeCount += 1
-      administrativeSurcharge += SURCHARGE_PER_STRIKE_ORDINAL * strikeCount
-    } else if (record.action === 'amend') {
-      amendmentCount += 1
-      administrativeSurcharge += SURCHARGE_PER_AMENDMENT_ORDINAL * amendmentCount
+      return total + SURCHARGE_PER_STRIKE
     }
-  }
+    if (record.action === 'amend') {
+      return total + SURCHARGE_PER_AMENDMENT
+    }
+    return total
+  }, 0)
 
-  const boundedProcessingFee = clampToMeterRange(processingFee)
-  const boundedAdministrativeSurcharge = clampToMeterRange(administrativeSurcharge)
-
+  const boundedSurcharge = clampToMeterRange(administrativeSurcharge)
   return {
-    processingFee: boundedProcessingFee,
-    administrativeSurcharge: boundedAdministrativeSurcharge,
-    burden: clampToMeterRange(boundedProcessingFee + boundedAdministrativeSurcharge)
+    administrativeSurcharge: boundedSurcharge,
+    assessment: boundedSurcharge
   }
 }
 
 export function determineOutcome(parameters: {
   neutralizedControlCount: number
   totalControlCount: number
-  burden: number
+  assessment: number
   decision: SignatureDecision
 }): Outcome {
   if (parameters.decision === 'walk') {
@@ -69,7 +57,7 @@ export function determineOutcome(parameters: {
   if (parameters.neutralizedControlCount < parameters.totalControlCount) {
     return 'partial'
   }
-  if (parameters.burden < TRAP_THRESHOLD) {
+  if (parameters.assessment < TRAP_THRESHOLD) {
     return 'cleanEscape'
   }
   return 'trapped'

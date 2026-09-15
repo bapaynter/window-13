@@ -1,5 +1,6 @@
 <script setup lang="ts">
-const { startSession, isBusy, errorMessage, resetSession } = useDevilSession()
+const { startSession, isBusy, errorMessage, resetSession, restoreSession, pendingGeneration } =
+  useDevilSession()
 
 const wish = ref('')
 const hasAcknowledged = ref(false)
@@ -10,6 +11,11 @@ const isSubmittable = computed(
 )
 
 onMounted((): void => {
+  restoreSession()
+  if (pendingGeneration.value !== null) {
+    navigateTo('/waiting')
+    return
+  }
   resetSession()
 })
 
@@ -19,7 +25,7 @@ async function submitWish(): Promise<void> {
   }
   const didStart = await startSession(wish.value.trim())
   if (didStart) {
-    await navigateTo('/contract')
+    await navigateTo('/waiting')
   }
 }
 </script>
@@ -51,11 +57,11 @@ async function submitWish(): Promise<void> {
 
       <div class="button-row">
         <button class="gov-button primary" type="button" :disabled="!isSubmittable" @click="submitWish">
-          {{ isBusy ? 'Processing…' : 'Submit for Processing' }}
+          Submit for Processing
         </button>
       </div>
       <p class="small-print">
-        Submissions may take a moment while the assigned window reviews your record. Do not refresh. Do not blink.
+        Submissions may take a moment while the assigned window reviews your record. You will be placed in a queue.
       </p>
     </div>
   </div>

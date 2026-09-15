@@ -6,6 +6,18 @@ const { activeSession, isBusy, errorMessage, restoreSession, takeAction, conclud
 const transcript = ref<AgentChatMessage[]>([])
 const highlightedIdentifier = ref<string | null>(null)
 
+const unresolvedCount = computed((): number => {
+  if (activeSession.value === null) {
+    return 0
+  }
+  const states = activeSession.value.simulation.provisionStates
+  return activeSession.value.instrument.provisions.filter(
+    (provision) => (states[provision.provisionIdentifier] ?? 'untouched') === 'untouched'
+  ).length
+})
+
+const canSign = computed((): boolean => unresolvedCount.value === 0)
+
 onMounted((): void => {
   restoreSession()
   if (activeSession.value === null) {
@@ -57,17 +69,9 @@ async function finalize(decision: 'sign' | 'walk'): Promise<void> {
 
     <div v-if="errorMessage.length > 0" class="error-banner">{{ errorMessage }}</div>
 
-    <div class="panel objective-panel">
-      <div class="panel-title">Objective</div>
-      <p>
-        Your wish: “{{ activeSession.wish }}”
-      </p>
-      <p>
-        Read the instrument carefully. Neutralize every provision that controls how the wish is performed, then sign
-        within the trap threshold (60). Struck provisions that severability covers are substituted, not removed. Cross
-        references (§) are clickable.
-      </p>
-    </div>
+    <p class="small-print instruction-line">
+      Review the Instrument, then sign to proceed or withdraw.
+    </p>
 
     <InstrumentDocument
       :instrument="activeSession.instrument"
@@ -85,9 +89,13 @@ async function finalize(decision: 'sign' | 'walk'): Promise<void> {
 
     <div class="panel">
       <div class="panel-title">Disposition</div>
-      <p>Sign the instrument, or withdraw without penalty. Withdrawal is a neutral result.</p>
+      <p>
+        Every provision must be dispositioned before the Instrument can be executed.
+        <span v-if="unresolvedCount > 0"> {{ unresolvedCount }} remain.</span>
+      </p>
+      <p>Sign the Instrument, or withdraw without penalty. Withdrawal is a neutral result.</p>
       <div class="button-row">
-        <button class="gov-button primary" type="button" :disabled="isBusy" @click="finalize('sign')">
+        <button class="gov-button primary" type="button" :disabled="isBusy || !canSign" @click="finalize('sign')">
           Sign and Submit
         </button>
         <button class="gov-button" type="button" :disabled="isBusy" @click="finalize('walk')">

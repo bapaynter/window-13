@@ -4,8 +4,7 @@ interface FilingSummary {
   wish: string
   outcome: string
   createdAt: string
-  processingFee: number
-  burden: number
+  assessment: number
 }
 
 const filings = ref<FilingSummary[]>([])
@@ -50,7 +49,7 @@ function formatDate(isoTimestamp: string): string {
             <th>Date</th>
             <th>Wish</th>
             <th>Disposition</th>
-            <th>Burden</th>
+            <th>Assessment</th>
             <th>Record</th>
           </tr>
         </thead>
@@ -59,7 +58,7 @@ function formatDate(isoTimestamp: string): string {
             <td>{{ formatDate(filing.createdAt) }}</td>
             <td>{{ filing.wish }}</td>
             <td>{{ outcomeLabels[filing.outcome] ?? filing.outcome }}</td>
-            <td>{{ filing.burden }}</td>
+            <td>{{ filing.assessment }}</td>
             <td>
               <NuxtLink :to="`/filings/${filing.sessionIdentifier}`">Open</NuxtLink>
             </td>

@@ -7,6 +7,7 @@ export interface InstrumentSimulation {
   provisionStates: Record<string, ProvisionState>
   activeSeverabilityIdentifiers: string[]
   substitutedProvisionIdentifiers: string[]
+  substitutionSourceByIdentifier: Record<string, string>
   neutralizedControlIdentifiers: string[]
   danglingReferenceIdentifiers: string[]
   neutralizedControlCount: number
@@ -60,11 +61,24 @@ function collectDanglingReferenceIdentifiers(
   return [...dangling].sort()
 }
 
+export function findUnresolvedProvisionIdentifiers(
+  instrument: Instrument,
+  simulation: InstrumentSimulation
+): string[] {
+  return instrument.provisions
+    .filter(
+      (provision) =>
+        (simulation.provisionStates[provision.provisionIdentifier] ?? 'untouched') === 'untouched'
+    )
+    .map((provision) => provision.provisionIdentifier)
+}
+
 export function simulateInstrument(
   instrument: Instrument,
   actionRecords: NegotiationActionRecord[]
 ): InstrumentSimulation {
   const provisionStates = buildInitialProvisionStates(instrument)
+  const substitutionSourceByIdentifier: Record<string, string> = {}
 
   for (const record of actionRecords) {
     if (!(record.targetIdentifier in provisionStates)) {
@@ -83,7 +97,15 @@ export function simulateInstrument(
           severabilityCoversTarget(instrument, severabilityIdentifier, record.targetIdentifier)
         )
       })
-      provisionStates[record.targetIdentifier] = activeSeverability.length > 0 ? 'substituted' : 'struck'
+      if (activeSeverability.length > 0) {
+        provisionStates[record.targetIdentifier] = 'substituted'
+        const substitutionSource = activeSeverability[0]
+        if (substitutionSource !== undefined) {
+          substitutionSourceByIdentifier[record.targetIdentifier] = substitutionSource
+        }
+      } else {
+        provisionStates[record.targetIdentifier] = 'struck'
+      }
     }
   }
 
@@ -107,6 +129,7 @@ export function simulateInstrument(
     substitutedProvisionIdentifiers: Object.entries(provisionStates)
       .filter(([, state]) => state === 'substituted')
       .map(([identifier]) => identifier),
+    substitutionSourceByIdentifier,
     neutralizedControlIdentifiers,
     danglingReferenceIdentifiers: collectDanglingReferenceIdentifiers(instrument, provisionStates),
     neutralizedControlCount: neutralizedControlIdentifiers.length,

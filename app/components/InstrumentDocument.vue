@@ -183,7 +183,6 @@ function requestAction(action: DevilActionRecord['action'], identifier: string):
 
         <div class="clause-costs">
           <div>Stated consideration: {{ provision.consideration }}</div>
-          <div>Processing fee: {{ provision.processingFee }}</div>
           <div v-if="backlinksFor(provision.provisionIdentifier).length > 0">
             Referenced by: {{ backlinksFor(provision.provisionIdentifier).join(', ') }}
           </div>
@@ -249,7 +248,7 @@ function requestAction(action: DevilActionRecord['action'], identifier: string):
           />
         </p>
         <div class="clause-costs">
-          A schedule cannot be struck. Strike the provision that incorporates it.
+          Schedules form part of the Instrument.
         </div>
       </div>
     </div>

@@ -51,6 +51,8 @@ onMounted(async (): Promise<void> => {
         <p class="notice-text">{{ record.noticeText }}</p>
       </div>
 
+      <LaymanSummary :layman-outcome="record.finalRecord.laymanOutcome" />
+
       <ContractOfRecord :final-record="record.finalRecord" />
 
       <div class="button-row">

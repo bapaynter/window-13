@@ -1,43 +1,31 @@
 import { describe, it, expect } from 'vitest'
-import { simulateInstrument } from '../server/utils/devil/instrumentSimulation'
-import { buildFallbackInstrument, INSTRUMENT_TEMPLATES } from '../server/utils/devil/instrumentTemplates'
-import type { InstrumentSkeleton } from '../server/utils/devil/instrumentTemplates'
+import { simulateInstrument, findUnresolvedProvisionIdentifiers } from '../server/utils/devil/instrumentSimulation'
+import { buildFallbackInstrument, buildInstrumentSkeleton } from '../server/utils/devil/instrumentTemplates'
 import type { NegotiationAction, NegotiationActionRecord } from '../server/utils/devil/meters'
 
-function findTemplate(templateIdentifier: string): InstrumentSkeleton {
-  const template = INSTRUMENT_TEMPLATES.find(
-    (candidate) => candidate.templateIdentifier === templateIdentifier
-  )
-  if (template === undefined) {
-    throw new Error(`template not found: ${templateIdentifier}`)
-  }
-  return template
-}
-
-function buildRecord(
-  round: number,
-  action: NegotiationAction,
-  targetIdentifier: string
-): NegotiationActionRecord {
-  return { round, action, targetIdentifier, processingFee: 0 }
+function buildRecord(round: number, action: NegotiationAction, targetIdentifier: string): NegotiationActionRecord {
+  return { round, action, targetIdentifier }
 }
 
 describe('simulateInstrument — severability', () => {
-  const instrument = buildFallbackInstrument(findTemplate('severability'))
+  const instrument = buildFallbackInstrument(
+    buildInstrumentSkeleton({ twistChainLength: 3, hasSeverability: true })
+  )
 
-  it('substitutes a struck provision while severability is live', () => {
+  it('substitutes a struck twist provision while severability is live', () => {
     const simulation = simulateInstrument(instrument, [buildRecord(1, 'strike', '6.1')])
     expect(simulation.provisionStates['6.1']).toBe('substituted')
     expect(simulation.isTrapNeutralized).toBe(false)
     expect(simulation.neutralizedControlCount).toBe(0)
   })
 
-  it('neutralizes once the severability provision is amended', () => {
+  it('neutralizes after the severability provision is amended', () => {
     const simulation = simulateInstrument(instrument, [
       buildRecord(1, 'amend', '9.1'),
-      buildRecord(2, 'strike', '6.1')
+      buildRecord(2, 'strike', '6.1'),
+      buildRecord(3, 'strike', '6.2'),
+      buildRecord(4, 'strike', '6.3')
     ])
-    expect(simulation.provisionStates['6.1']).toBe('struck')
     expect(simulation.isTrapNeutralized).toBe(true)
     expect(simulation.activeSeverabilityIdentifiers).not.toContain('9.1')
   })
@@ -54,53 +42,84 @@ describe('simulateInstrument — severability', () => {
 
   it('reports dangling references for substituted provisions', () => {
     const simulation = simulateInstrument(instrument, [buildRecord(1, 'strike', '9.1')])
-    expect(simulation.provisionStates['9.1']).toBe('substituted')
     expect(simulation.danglingReferenceIdentifiers).toContain('9.1')
   })
 })
 
-describe('simulateInstrument — amend-only provisions', () => {
-  const instrument = buildFallbackInstrument(findTemplate('definedTerm'))
+describe('simulateInstrument — plain instrument', () => {
+  const instrument = buildFallbackInstrument(
+    buildInstrumentSkeleton({ twistChainLength: 3, hasSeverability: false })
+  )
 
-  it('does not neutralize an amend-only provision by striking it', () => {
+  it('neutralizes when every twist provision is struck', () => {
     const simulation = simulateInstrument(instrument, [
       buildRecord(1, 'strike', '6.1'),
-      buildRecord(2, 'strike', '6.2')
-    ])
-    expect(simulation.neutralizedControlIdentifiers).toEqual(['6.2'])
-    expect(simulation.isTrapNeutralized).toBe(false)
-  })
-
-  it('neutralizes when the amend-only provision is amended', () => {
-    const simulation = simulateInstrument(instrument, [
-      buildRecord(1, 'amend', '6.1'),
-      buildRecord(2, 'strike', '6.2')
+      buildRecord(2, 'strike', '6.2'),
+      buildRecord(3, 'strike', '6.3')
     ])
     expect(simulation.isTrapNeutralized).toBe(true)
-  })
-})
-
-describe('simulateInstrument — plain strike templates', () => {
-  const instrument = buildFallbackInstrument(findTemplate('precedence'))
-
-  it('neutralizes when both controlling provisions are struck', () => {
-    const simulation = simulateInstrument(instrument, [
-      buildRecord(1, 'strike', '6.1'),
-      buildRecord(2, 'strike', '6.2')
-    ])
-    expect(simulation.isTrapNeutralized).toBe(true)
-    expect(simulation.neutralizedControlCount).toBe(2)
+    expect(simulation.neutralizedControlCount).toBe(3)
   })
 
-  it('is partial when only one is neutralized', () => {
+  it('is partial when only some are neutralized', () => {
     const simulation = simulateInstrument(instrument, [buildRecord(1, 'strike', '6.1')])
     expect(simulation.neutralizedControlCount).toBe(1)
-    expect(simulation.totalControlCount).toBe(2)
+    expect(simulation.totalControlCount).toBe(3)
     expect(simulation.isTrapNeutralized).toBe(false)
   })
 
   it('ignores actions against unknown identifiers', () => {
     const simulation = simulateInstrument(instrument, [buildRecord(1, 'strike', '99.9')])
     expect(simulation.neutralizedControlCount).toBe(0)
+  })
+
+  it('never treats the grant as a controlling provision', () => {
+    expect(instrument.controllingProvisionIdentifiers).not.toContain('2.1')
+  })
+})
+
+describe('substitution source', () => {
+  const instrument = buildFallbackInstrument(
+    buildInstrumentSkeleton({ twistChainLength: 3, hasSeverability: true })
+  )
+
+  it('records which severability provision reissued the struck clause', () => {
+    const simulation = simulateInstrument(instrument, [buildRecord(1, 'strike', '6.1')])
+    expect(simulation.substitutionSourceByIdentifier['6.1']).toBe('9.1')
+  })
+
+  it('records no source for a clean strike', () => {
+    const plain = buildFallbackInstrument(
+      buildInstrumentSkeleton({ twistChainLength: 2, hasSeverability: false })
+    )
+    const simulation = simulateInstrument(plain, [buildRecord(1, 'strike', '6.1')])
+    expect(simulation.substitutionSourceByIdentifier['6.1']).toBeUndefined()
+  })
+})
+
+describe('findUnresolvedProvisionIdentifiers', () => {
+  const instrument = buildFallbackInstrument(
+    buildInstrumentSkeleton({ twistChainLength: 2, hasSeverability: false })
+  )
+
+  it('lists every provision with no disposition', () => {
+    const simulation = simulateInstrument(instrument, [])
+    expect(findUnresolvedProvisionIdentifiers(instrument, simulation)).toHaveLength(instrument.provisions.length)
+  })
+
+  it('is empty once every provision is dispositioned', () => {
+    const records = instrument.provisions.map((provision, index) =>
+      buildRecord(index + 1, 'approve', provision.provisionIdentifier)
+    )
+    const simulation = simulateInstrument(instrument, records)
+    expect(findUnresolvedProvisionIdentifiers(instrument, simulation)).toHaveLength(0)
+  })
+
+  it('still lists the provisions that were left untouched', () => {
+    const firstProvision = instrument.provisions[0].provisionIdentifier
+    const simulation = simulateInstrument(instrument, [buildRecord(1, 'approve', firstProvision)])
+    const unresolved = findUnresolvedProvisionIdentifiers(instrument, simulation)
+    expect(unresolved).not.toContain(firstProvision)
+    expect(unresolved.length).toBe(instrument.provisions.length - 1)
   })
 })

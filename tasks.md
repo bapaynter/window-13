@@ -105,3 +105,58 @@ Supersedes the flat-clause model. Retired: `contractSchema`, `contractValidator`
 - [x] 14.2 Live playthrough: correct solve → cleanEscape; partial; wrong solve → hell;
       severability substitution + amend-first verified
 
+---
+
+# v3 — Canonical twist + plain-terms reveal
+
+- [x] 15 `instrumentSchema` — `laymanExplanation` (+ bounds, validation)
+- [x] 16 `instrumentTemplates` — single canonical skeleton, randomized 2–3 chain and
+      optional substitution guard, absolute grant, no evasion language
+- [x] 17 `prompts` — grant mandate, evasion negatives, benign operative terms, layman copy
+- [x] 18 `instrumentGeneration` — parse/clamp/fallback the layman block
+- [x] 19 `instrumentRecord` — `laymanOutcome` (all / partial / none / draw)
+- [x] 20 Player-facing copy de-cued: contract instruction line, index/regulations/FAQ
+      rewritten, meter labels renamed (Total Assessment / Assessment Ceiling)
+- [x] 21 `LaymanSummary.vue` — "In Plain Terms" on Notice and reopened filings
+- [x] 22 Verify: 66 tests, typecheck clean, live run confirms a monkeys-paw twist
+      (bottomless cup → defined as having no bottom), no leakage, plain terms correct
+
+---
+
+# v4 — Kill the silent fallback; shard the boilerplate
+
+- [x] 23 `openrouter` — `requestCompletionDetailed` exposes `finish_reason`
+- [x] 24 `instrumentGeneration` — strict assembly (no field falls back to hint text),
+      escalating completion budgets [16k, 24k, 32k], placeholder-leak guard, throw on
+      exhaustion so the ticket fails; generate the wish-fulfilment mechanism concretely
+- [x] 25 `generationTelemetry` — attempt/success/failure counts at `data/generation-stats.json`
+      and `GET /api/devil/generation-stats`
+- [x] 26 `issue/status` — a session generating past 2 minutes is treated as failed
+- [x] 27 `instrumentTemplates` — boilerplate shrunk to 8 inert provisions + 5 definitions
+      (10–13 provisions total)
+- [x] 28 `CrossReferencedText` — § references render as anchors so they copy as text
+- [x] 29 Waiting screen abandon moved to 90s
+- [x] 30 Verify: 76 tests, typecheck clean, 4/4 live drafts ready with no placeholder
+      text (~22–35s each), stats endpoint reports successRate 1
+
+---
+
+# v5 — Winnable economy, real substitution, disposition-then-sign
+
+- [x] 31 Approval free; assessment = flat surcharges (strike 4, amend 3); ceiling 20;
+      drop per-clause processing fees from schema, templates, generation, meters, UI
+- [x] 32 Substitution is real: `substitutionSourceByIdentifier`, session
+      `provisionTextOverrides`, applied on amend/substitution, merged in `playerView`
+- [x] 33 Signing requires every provision dispositioned (server 409 + disabled button)
+- [x] 34 Severability text states it applies only while it stands as written
+      (amend-to-disable is discoverable from the document)
+- [x] 35 `findUnresolvedProvisionIdentifiers` helper; record labels split operative
+      status from disposition; struck clauses strike through, substituted show new text
+- [x] 36 Tests: per-structure winnability (optimal line < ceiling), substitution source,
+      unresolved helper — 81 pass; typecheck clean
+- [x] 37 Live: sign guard 409; strike on a guarded clause shows SUBSTITUTED + reissued
+      text; winning line → cleanEscape at assessment 14/20
+
+
+
+

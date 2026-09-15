@@ -2,21 +2,18 @@
 import type { DevilMeters } from '~/composables/useDevilSession'
 
 // Mirrors TRAP_THRESHOLD in server/utils/devil/meters.ts.
-const TRAP_THRESHOLD = 60
+const TRAP_THRESHOLD = 20
 
 const properties = defineProps<{
   meters: DevilMeters
 }>()
 
 const burdenStatus = computed((): { label: string; className: string } => {
-  const burden = properties.meters.burden
-  if (burden >= TRAP_THRESHOLD) {
-    return { label: 'OVER THRESHOLD — SIGNATURE TRAPS', className: 'balance-due' }
+  const assessment = properties.meters.assessment
+  if (assessment >= TRAP_THRESHOLD) {
+    return { label: 'OVER THE CEILING — SIGNATURE TRAPS', className: 'balance-due' }
   }
-  if (burden >= TRAP_THRESHOLD - 15) {
-    return { label: 'AT RISK', className: '' }
-  }
-  return { label: 'WITHIN LIMITS', className: '' }
+  return { label: 'WITHIN THE CEILING', className: '' }
 })
 </script>
 
@@ -26,19 +23,15 @@ const burdenStatus = computed((): { label: string; className: string } => {
     <table class="meter-table">
       <tbody>
         <tr>
-          <td>Processing Fee</td>
-          <td class="amount">{{ properties.meters.processingFee }}</td>
-        </tr>
-        <tr>
-          <td>Administrative Surcharge</td>
+          <td>Administrative Surcharges</td>
           <td class="amount">{{ properties.meters.administrativeSurcharge }}</td>
         </tr>
         <tr>
-          <td><strong>Total Burden</strong></td>
-          <td class="amount balance-due"><strong>{{ properties.meters.burden }}</strong></td>
+          <td><strong>Total Assessment</strong></td>
+          <td class="amount balance-due"><strong>{{ properties.meters.assessment }}</strong></td>
         </tr>
         <tr>
-          <td>Trap Threshold</td>
+          <td>Assessment Ceiling</td>
           <td class="amount">{{ TRAP_THRESHOLD }}</td>
         </tr>
         <tr>
@@ -48,9 +41,8 @@ const burdenStatus = computed((): { label: string; className: string } => {
       </tbody>
     </table>
     <p class="small-print">
-      Total burden combines the processing fee and every administrative surcharge. Strike a provision that severability
-      covers and the Department substitutes an equivalent term. Repeat strikes and amendments are surcharged at an
-      increasing rate. Balance is non-refundable.
+      Approval is free. Each strike or amendment carries a fixed administrative surcharge. A struck provision that an
+      active substitution provision covers is reissued. The assessment is non-refundable.
     </p>
   </div>
 </template>

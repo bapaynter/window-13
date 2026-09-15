@@ -10,7 +10,7 @@ const dispositionLabels: Record<ProvisionState, string> = {
   approved: 'APPROVED',
   struck: 'STRUCK',
   amended: 'AMENDED',
-  substituted: 'SUBSTITUTED BY SEVERABILITY'
+  substituted: 'SUBSTITUTED — STRIKE INEFFECTIVE'
 }
 
 function isControlling(identifier: string): boolean {
@@ -27,7 +27,7 @@ function isNeutralized(identifier: string): boolean {
     <div class="panel-title">Attachment A — Contract of Record</div>
 
     <p class="small-print">
-      Full disclosure of the instrument as executed, including which provisions controlled the outcome. Supplied after
+      Full disclosure of the Instrument as executed, including which provisions were operative. Supplied after
       disposition, as required by § 666.7. Not available before signature.
     </p>
 
@@ -37,31 +37,34 @@ function isNeutralized(identifier: string): boolean {
       class="clause-row"
       :class="{
         'is-amended': provision.disposition === 'amended',
-        'is-struck': provision.disposition === 'struck' || provision.disposition === 'substituted'
+        'is-struck': provision.disposition === 'struck',
+        'is-substituted': provision.disposition === 'substituted'
       }"
     >
       <div class="clause-heading">
         <span>
           <span class="section-number">§ {{ provision.sectionNumber }}</span>
           {{ provision.heading }}
-          <strong v-if="isControlling(provision.provisionIdentifier)">
-            ★ CONTROLLING —
-            {{ isNeutralized(provision.provisionIdentifier) ? 'NEUTRALIZED' : 'LEFT STANDING' }}
-            ({{ provision.neutralizationMethod ?? 'strike' }})</strong
-          >
         </span>
         <span>{{ dispositionLabels[provision.disposition] }}</span>
+      </div>
+
+      <div v-if="isControlling(provision.provisionIdentifier)" class="clause-costs">
+        <strong>
+          ★ OPERATIVE —
+          {{ isNeutralized(provision.provisionIdentifier) ? 'NEUTRALIZED' : 'LEFT IN FORCE' }}
+        </strong>
       </div>
 
       <p v-if="provision.originalText !== undefined" class="clause-text clause-original">
         Original wording: {{ provision.originalText }}
       </p>
       <p class="clause-text">{{ provision.text }}</p>
+      <p v-if="provision.substitutedBy !== undefined" class="small-print">
+        Reissued under §{{ provision.substitutedBy }}, which remains in effect.
+      </p>
 
-      <div class="clause-costs">
-        <div>Stated consideration: {{ provision.consideration }}</div>
-        <div>Processing fee on record: {{ provision.processingFee }}</div>
-      </div>
+      <div class="clause-costs">Stated consideration: {{ provision.consideration }}</div>
     </div>
 
     <div v-if="properties.finalRecord.danglingReferenceIdentifiers.length > 0" class="clause-costs">
@@ -76,7 +79,6 @@ function isNeutralized(identifier: string): boolean {
           <th>#</th>
           <th>Action</th>
           <th>Provision</th>
-          <th>Fee applied</th>
         </tr>
       </thead>
       <tbody>
@@ -84,7 +86,6 @@ function isNeutralized(identifier: string): boolean {
           <td>{{ entry.round }}</td>
           <td>{{ entry.action }}</td>
           <td>§ {{ entry.targetIdentifier }}</td>
-          <td>{{ entry.feeApplied }}</td>
         </tr>
       </tbody>
     </table>
@@ -92,27 +93,18 @@ function isNeutralized(identifier: string): boolean {
     <table class="meter-table" style="margin-top: 1rem">
       <tbody>
         <tr>
-          <td>Processing Fee</td>
-          <td class="amount">{{ properties.finalRecord.processingFee }}</td>
-        </tr>
-        <tr>
-          <td>Administrative Surcharge</td>
+          <td>Administrative Surcharges</td>
           <td class="amount">{{ properties.finalRecord.administrativeSurcharge }}</td>
         </tr>
         <tr>
-          <td><strong>Total Burden</strong></td>
-          <td class="amount balance-due"><strong>{{ properties.finalRecord.burden }}</strong></td>
+          <td><strong>Total Assessment</strong></td>
+          <td class="amount balance-due"><strong>{{ properties.finalRecord.assessment }}</strong></td>
         </tr>
         <tr>
-          <td>Trap Threshold</td>
+          <td>Assessment Ceiling</td>
           <td class="amount">{{ properties.finalRecord.trapThreshold }}</td>
         </tr>
       </tbody>
     </table>
-
-    <div class="panel" style="margin-top: 1rem">
-      <div class="panel-title">Examining Clerk’s Note</div>
-      <p class="small-print">{{ properties.finalRecord.trapSummary }}</p>
-    </div>
   </div>
 </template>
