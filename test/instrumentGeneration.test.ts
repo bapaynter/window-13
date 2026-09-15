@@ -1,10 +1,20 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { rm } from 'node:fs/promises'
-import { assembleInstrumentStrict, containsPlaceholderText } from '../server/utils/devil/instrumentGeneration'
+import {
+  assembleInstrumentStrict,
+  containsPlaceholderText,
+  validateGeneratedContent,
+  buildScheduleOfCharges
+} from '../server/utils/devil/instrumentGeneration'
 import { buildFallbackInstrument, buildInstrumentSkeleton } from '../server/utils/devil/instrumentTemplates'
 import { buildInstrumentMessages } from '../server/utils/devil/prompts'
 import { PERSONALITY_PROFILES } from '../server/utils/devil/personalities'
 import { DEVIL_STATS_PATH } from '../server/utils/devil/config'
+import {
+  SURCHARGE_PER_AMENDMENT,
+  SURCHARGE_PER_STRIKE,
+  TRAP_THRESHOLD
+} from '../server/utils/devil/meters'
 import {
   readGenerationStats,
   recordGenerationAttempt,
@@ -17,7 +27,10 @@ const SKELETON = buildInstrumentSkeleton({ twistChainLength: 3, hasSeverability:
 function buildCompleteReply() {
   const definitions: Record<string, { term: string; text: string }> = {}
   for (const definition of SKELETON.definitions) {
-    definitions[definition.definitionIdentifier] = { term: `Term ${definition.definitionIdentifier}`, text: `Definition text ${definition.definitionIdentifier}.` }
+    definitions[definition.definitionIdentifier] = {
+      term: `Term ${definition.definitionIdentifier}`,
+      text: `Definition text ${definition.definitionIdentifier}.`
+    }
   }
   const provisions: Record<string, { heading: string; text: string; consideration: string }> = {}
   for (const provision of SKELETON.provisions) {
@@ -27,15 +40,12 @@ function buildCompleteReply() {
       consideration: 'standard handling'
     }
   }
-  const schedules: Record<string, { title: string; body: string }> = {}
-  for (const schedule of SKELETON.schedules) {
-    schedules[schedule.scheduleIdentifier] = { title: `Schedule ${schedule.scheduleIdentifier}`, body: 'Schedule body.' }
-  }
+  const keyTerm = definitions['1.4'].term
+  provisions['6.1'].text = `In performance of the Wish under §2.1 the Department applies ${keyTerm} to the Wish as stated.`
   return {
-    recitals: 'A full recital specific to this wish.',
+    recitals: 'On the date recorded the Applicant submitted the Wish, which was registered at intake.',
     definitions,
     provisions,
-    schedules,
     substitutions: { '9.1': 'Substituted wording.', '9.2': 'Substituted wording two.' },
     layman: {
       twistSummary: 'What the document did.',
@@ -96,12 +106,53 @@ describe('containsPlaceholderText', () => {
   })
 })
 
+describe('validateGeneratedContent', () => {
+  it('accepts a clean instrument whose performance clause names the key term', () => {
+    const instrument = assembleInstrumentStrict(SKELETON, buildCompleteReply())
+    expect(validateGeneratedContent(instrument as never)).toBeNull()
+  })
+
+  it('rejects recitals that cross-reference the articles', () => {
+    const instrument = assembleInstrumentStrict(SKELETON, buildCompleteReply())
+    if (instrument === null) throw new Error('expected instrument')
+    instrument.recitals = 'The Wish was registered and performed under §6.1.'
+    expect(validateGeneratedContent(instrument)).toBe('recitals-not-clean')
+  })
+
+  it('rejects recitals that state the mechanism', () => {
+    const instrument = assembleInstrumentStrict(SKELETON, buildCompleteReply())
+    if (instrument === null) throw new Error('expected instrument')
+    instrument.recitals = 'The mechanism of performance is that the Applicant never wakes.'
+    expect(validateGeneratedContent(instrument)).toBe('recitals-not-clean')
+  })
+
+  it('rejects an abstract performance clause that omits the key term', () => {
+    const instrument = assembleInstrumentStrict(SKELETON, buildCompleteReply())
+    if (instrument === null) throw new Error('expected instrument')
+    const performance = instrument.provisions.find((p) => p.provisionIdentifier === '6.1')
+    if (performance === undefined) throw new Error('expected performance clause')
+    performance.text = 'The term defined in §1.4 applies to the grant under §2.1 in the sense stated.'
+    expect(validateGeneratedContent(instrument)).toBe('performance-not-concrete')
+  })
+})
+
+describe('buildScheduleOfCharges', () => {
+  it('reflects the real constants so it cannot contradict the economy', () => {
+    const schedules = buildScheduleOfCharges(SKELETON)
+    const body = schedules[0].body
+    expect(body).toContain(String(SURCHARGE_PER_STRIKE))
+    expect(body).toContain(String(SURCHARGE_PER_AMENDMENT))
+    expect(body).toContain(String(TRAP_THRESHOLD))
+  })
+})
+
 describe('buildInstrumentMessages', () => {
-  it('names the grant as absolute and bans meta language', () => {
+  it('names the grant as absolute, bans meta language, and forbids recital cross-references', () => {
     const messages = buildInstrumentMessages(PERSONALITY_PROFILES.actuary, SKELETON, 'I wish for a test.')
     const systemContent = messages[0].content.toLowerCase()
     expect(systemContent).toContain('grants the applicant')
     expect(systemContent).toContain('never use the words "twist"')
+    expect(systemContent).toContain('intake record only')
   })
 })
 

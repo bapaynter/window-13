@@ -7,6 +7,7 @@ A browser game where you review a soul contract issued by a bored infernal clerk
 - **One wish.** The player submits a single wish through a form.
 - **The clerk issues an Instrument** — one dense legal document: recitals, definitions, numbered provisions, and any attached schedules. Roughly ten to thirteen provisions.
 - **Everything is visible.** Nothing is hidden. The difficulty is comprehending dense legalese and tracing how provisions modify each other, not information asymmetry.
+- The **recitals are an intake record only** (date, wish, registration, grant). The performance mechanism lives in the operative provisions — §6.1 states concretely how the wish is performed — because those are the provisions the applicant may strike or amend. The Schedule of Charges is generated from the game's own constants, so it cannot contradict the economy.
 
 ## The twist
 

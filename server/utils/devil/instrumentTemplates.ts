@@ -146,7 +146,7 @@ const SCHEDULES: ScheduleSkeleton[] = [
   {
     scheduleIdentifier: 'A',
     titleHint: 'Schedule A — Schedule of Charges',
-    bodyHint: 'a short table listing the fixed surcharge for a strike and for an amendment',
+    bodyHint: 'the fixed administrative surcharges for a strike and for an amendment',
     referencedBy: ['3.2']
   }
 ]
@@ -166,14 +166,14 @@ function buildTwistProvisions(options: InstrumentSkeletonOptions): ProvisionSkel
   const twist: ProvisionSkeleton = {
     provisionIdentifier: '6.1',
     sectionNumber: '6.1',
-    headingHint: 'Application of Defined Terms',
+    headingHint: 'Performance of the Wish',
     textHint:
-      'the term defined in §1.4 applies to the grant under §2.1 in the sense stated, without regard to the applicant’s convenience',
+      'in performance of the Wish under §2.1, the Department applies the term defined in §1.4 to the Wish as stated, without regard to the Applicant’s convenience',
     considerationHint: 'none',
     references: ['1.4', '2.1'],
     mechanism: 'definition',
     roleHint:
-      'Write a standard-sounding operative term that, read literally alongside §1.4, turns the granted wish into a hardship. Prefer redefining the word in §1.4 or attaching a mundane-sounding condition. Never signal that it is adverse or unusual.'
+      'State in concrete terms how the Wish under §2.1 is actually performed, naming the term defined in §1.4 and the specific effect on the Wish. It must be self-contained: a reader should see how the wish is carried out and what results, without the recitals. Never signal that it is adverse or unusual.'
   }
 
   if (options.twistChainLength === 2) {
@@ -197,14 +197,14 @@ function buildTwistProvisions(options: InstrumentSkeletonOptions): ProvisionSkel
     {
       provisionIdentifier: '6.2',
       sectionNumber: '6.2',
-      headingHint: 'Extent of Application',
-      textHint:
-        'the application under §6.1 is made without limit as to duration, repetition, magnitude, or number of persons affected',
-      considerationHint: 'none',
-      references: ['6.1', '2.1'],
-      mechanism: 'term',
-      roleHint:
-        'State that the term above applies without limit as to duration, magnitude, repetition, or scope. Keep it bland and procedural.'
+        headingHint: 'Extent of Performance',
+        textHint:
+          'the performance under §6.1 is made without limit as to duration, repetition, magnitude, or number of persons affected',
+        considerationHint: 'none',
+        references: ['6.1', '2.1'],
+        mechanism: 'term',
+        roleHint:
+          'State that the performance above applies without limit as to duration, magnitude, repetition, or scope, tied concretely to the wish. Keep it bland and procedural.'
     },
     {
       provisionIdentifier: '6.3',
@@ -276,7 +276,7 @@ export function buildInstrumentSkeleton(options: InstrumentSkeletonOptions): Ins
     templateIdentifier: buildTemplateIdentifier(options),
     label: 'Standard instrument of grant',
     recitalsHint:
-      'a long recital describing the intake of the Wish and the Department’s ordinary course of business, using the key terms consistently',
+      'a short intake record only: the date, the Wish quoted in full, that it was registered, and that the Department grants it in full under §2.1. No description of how the grant is performed and no cross-references.',
     definitions: [...DEFINITIONS],
     provisions: [...INERT_PROVISIONS, ...twistProvisions, ...severabilityProvisions],
     schedules: [...SCHEDULES],

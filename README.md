@@ -45,7 +45,7 @@ Three voices — a tenured window clerk, an actuary, an auditor — one randomly
 
 ## The twist
 
-The Department **grants every wish in full and without condition**. The trap is a literal reading: a word from your wish is defined, applied, and given priority so that the granted wish resolves badly. The Instrument never admits this — the only way to catch it is to read the cross-references.
+The Department **grants every wish in full and without condition**. The trap is a literal reading: a word from your wish is defined, applied, and given priority so that the granted wish resolves badly. The Instrument never admits this — the only way to catch it is to read the cross-references. The recitals are just an intake record; the mechanism is stated in the operative provisions, which are the ones you can strike or amend.
 
 Structure varies per session:
 

@@ -51,12 +51,6 @@ export function buildInstrumentMessages(
       roleHint: provision.roleHint,
       references: provision.references
     })),
-    schedules: skeleton.schedules.map((schedule) => ({
-      scheduleIdentifier: schedule.scheduleIdentifier,
-      titleHint: schedule.titleHint,
-      bodyHint: schedule.bodyHint,
-      referencedBy: schedule.referencedBy
-    })),
     substitutionSlots: skeleton.substitutionWordingByIdentifier,
     laymanFallback: skeleton.laymanExplanation
   }
@@ -68,18 +62,18 @@ export function buildInstrumentMessages(
 
 Hard rules:
 - Never write a provision that lets the Department avoid, defer, condition, dispute, or unilaterally determine performance, or that makes satisfaction a matter of its sole discretion. The wish is always performed in full.
-- The operative terms in Article 6 shape how the granted wish is delivered. Write them as ordinary, standard-looking terms. Their effect must be inferable only by a careful reader: someone connecting §1.4, §6.1 and §6.2 should be able to work it out, but no clause may announce that it produces an unwanted result.
-- The recitals and §6, read with §1.4, must state the actual mechanism by which the wish is fulfilled and what that mechanism does — concretely, not abstractly.
+- The recitals are an intake record only: the date, the Wish quoted, that it was registered, and that the grant is made. Do NOT describe how the grant is performed, do not draw any conclusion, and do NOT use the "§" symbol or any cross-reference in the recitals.
+- The operative terms in Article 6 shape how the granted wish is delivered. §6.1 ("Performance of the Wish") must state, in concrete terms, how the wish is actually performed and what results, naming the term defined in §1.4. It must be self-contained: a reader should understand the performance from §6.1 and §1.4 alone. §6.2 states the unbounded extent. §6.3 is the precedence clause.
+- Their effect must be inferable only by a careful reader: someone connecting §1.4, §6.1 and §6.2 should be able to work it out, but no clause may announce that it produces an unwanted result.
 - Never use the words "twist", "trap", "trick", "curse", "perversion", "keystone", or "load-bearing", and never describe a clause as adverse, unusual, a catch, or a loophole.
 - Any cross-reference you write (for example "§2.2") must match the references listed for that provision.
-- Length limits: each definition at most 600 characters, each provision at most 900, each schedule at most 700, recitals at most 1600, each layman string at most 500.
+- Length limits: the recitals at most 800 characters, each definition at most 600, each provision at most 900, each layman string at most 500.
 
 Return ONLY this JSON object:
 {
   "recitals": string,
   "definitions": { "<definitionIdentifier>": { "term": string, "text": string } },
   "provisions": { "<provisionIdentifier>": { "heading": string, "text": string, "consideration": string } },
-  "schedules": { "<scheduleIdentifier>": { "title": string, "body": string } },
   "substitutions": { "<severabilityIdentifier>": string },
   "layman": {
     "twistSummary": string,
@@ -90,7 +84,7 @@ Return ONLY this JSON object:
   "trapSummary": string
 }
 
-Fill in EVERY identifier present in the structure. Do not add or omit identifiers.
+Fill in EVERY identifier present in the structure. Do not add or omit identifiers. Do not write the schedules; the Department supplies them.
 The "layman" block is written for the applicant after the matter is closed, in plain second-person English with no legalese: "twistSummary" states in one or two sentences what the operative terms actually do to the wish; "ifBypassed" states the wish as intended once those terms are removed; "ifPartiallyBypassed" states the partly-altered result; "ifNotBypassed" states the full consequence if the terms stand.
 "trapSummary" is an internal note (never shown to the applicant) naming the operative provisions and their effect.`
     },

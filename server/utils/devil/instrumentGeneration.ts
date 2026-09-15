@@ -1,13 +1,13 @@
-import type { Instrument } from './instrumentSchema'
+import type { Instrument, Schedule } from './instrumentSchema'
 import {
   MAXIMUM_DEFINITION_LENGTH,
   MAXIMUM_LAYMAN_LENGTH,
   MAXIMUM_PROVISION_LENGTH,
   MAXIMUM_RECITALS_LENGTH,
-  MAXIMUM_SCHEDULE_LENGTH,
   validateInstrument
 } from './instrumentSchema'
 import type { InstrumentSkeleton } from './instrumentTemplates'
+import { SURCHARGE_PER_AMENDMENT, SURCHARGE_PER_STRIKE, TRAP_THRESHOLD } from './meters'
 import type { PersonalityProfile } from './personalities'
 import { buildInstrumentMessages } from './prompts'
 import { requestCompletionDetailed } from './openrouter'
@@ -42,7 +42,6 @@ interface InstrumentModelReply {
   }
   definitions?: Record<string, { term?: unknown; text?: unknown }>
   provisions?: Record<string, { heading?: unknown; text?: unknown; consideration?: unknown }>
-  schedules?: Record<string, { title?: unknown; body?: unknown }>
   substitutions?: Record<string, unknown>
 }
 
@@ -105,21 +104,7 @@ export function assembleInstrumentStrict(
     })
   }
 
-  const schedules = []
-  for (const schedule of skeleton.schedules) {
-    const entry = reply.schedules?.[schedule.scheduleIdentifier]
-    const title = readRequiredText(entry?.title, 160)
-    const body = readRequiredText(entry?.body, MAXIMUM_SCHEDULE_LENGTH)
-    if (title === null || body === null) {
-      return null
-    }
-    schedules.push({
-      scheduleIdentifier: schedule.scheduleIdentifier,
-      title,
-      body,
-      referencedBy: [...schedule.referencedBy]
-    })
-  }
+  const schedules: Schedule[] = buildScheduleOfCharges(skeleton)
 
   const substitutionWordingByIdentifier = { ...skeleton.substitutionWordingByIdentifier }
   for (const [severabilityIdentifier, wording] of Object.entries(reply.substitutions ?? {})) {
@@ -174,6 +159,49 @@ export function containsPlaceholderText(instrument: Instrument): boolean {
   return PLACEHOLDER_MARKERS.some((marker) => text.includes(marker))
 }
 
+// Schedule of Charges is authored from the real constants so it can never
+// contradict the economy the game actually charges.
+export function buildScheduleOfCharges(skeleton: InstrumentSkeleton): Schedule[] {
+  return skeleton.schedules.map((schedule) => ({
+    scheduleIdentifier: schedule.scheduleIdentifier,
+    title: schedule.titleHint,
+    body: `Strike of any provision: ${SURCHARGE_PER_STRIKE} administrative units. Amendment of any provision: ${SURCHARGE_PER_AMENDMENT} administrative units. Assessment ceiling: ${TRAP_THRESHOLD} administrative units.`,
+    referencedBy: [...schedule.referencedBy]
+  }))
+}
+
+const RECITAL_FORBIDDEN_PHRASES = ['mechanism', 'is performed', 'performed under', 'as a result']
+const MAXIMUM_RECITAL_LENGTH = 800
+
+// Returns a failure reason, or null when the generated content is acceptable.
+// Enforced at generation time so the mechanism cannot leak into the recitals and
+// the performance clause cannot be abstract.
+export function validateGeneratedContent(instrument: Instrument): string | null {
+  const loweredRecitals = instrument.recitals.toLowerCase()
+  const recitalsAreClean =
+    !instrument.recitals.includes('§') &&
+    instrument.recitals.length <= MAXIMUM_RECITAL_LENGTH &&
+    !RECITAL_FORBIDDEN_PHRASES.some((phrase) => loweredRecitals.includes(phrase))
+  if (!recitalsAreClean) {
+    return 'recitals-not-clean'
+  }
+
+  const keyTerm = instrument.definitions.find(
+    (definition) => definition.definitionIdentifier === '1.4'
+  )?.term
+  const performance = instrument.provisions.find(
+    (provision) => provision.provisionIdentifier === '6.1'
+  )
+  if (keyTerm === undefined || keyTerm.length === 0 || performance === undefined) {
+    return 'performance-not-concrete'
+  }
+  if (!performance.text.toLowerCase().includes(keyTerm.toLowerCase())) {
+    return 'performance-not-concrete'
+  }
+
+  return null
+}
+
 export async function generateInstrument(parameters: {
   personality: PersonalityProfile
   skeleton: InstrumentSkeleton
@@ -215,6 +243,13 @@ export async function generateInstrument(parameters: {
       if (containsPlaceholderText(assembled)) {
         lastFailureReason = 'placeholder-text'
         await recordGenerationFailure(lastFailureReason)
+        continue
+      }
+
+      const contentIssue = validateGeneratedContent(assembled)
+      if (contentIssue !== null) {
+        lastFailureReason = contentIssue
+        await recordGenerationFailure(contentIssue)
         continue
       }
 
